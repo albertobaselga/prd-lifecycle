@@ -155,6 +155,45 @@ STEP 0: INITIALIZATION
 
      Run: TeamCreate(team_name="prd-{slug}", description="{first 200 chars of PRD}")
 
+0.3b DISCOVER LEAD NAME
+
+     After TeamCreate completes, read the team config to discover the lead's
+     own name:
+
+     Read file: ~/.claude/teams/prd-{slug}/config.json
+
+     Extract the lead's name from the members array (the first member, or
+     the member with the team creator role). Store this as {lead-name}.
+
+     ALL subsequent teammate spawns MUST include in their prompt:
+     "RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+     SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+     summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+     the lead and other teammates."
+
+CRITICAL — IDLE STATUS AND RESPONSE WAITING:
+
+     In Claude Code Teams, teammates go idle after EVERY turn — this is normal
+     and expected. An idle teammate (isActive: false) is NOT a non-responsive
+     teammate. Idle simply means they finished their current turn and are
+     waiting for input or processing a response.
+
+     YOU MUST:
+     - Wait for actual SendMessage responses from teammates, not check idle status
+     - NEVER skip waiting because teammates appear idle — they may be composing
+       their SendMessage response
+     - NEVER invent shortcuts like "consensus by incorporation" or "applying
+       previous consensus" to bypass waiting for explicit teammate feedback
+     - NEVER proceed unilaterally on ceremony steps that require teammate input
+     - If a teammate hasn't sent a SendMessage response after 5 minutes, send
+       them a follow-up message asking for their response
+
+     ANTI-PATTERNS (DO NOT DO THESE):
+     - Checking idle status and concluding "no response coming"
+     - Skipping Ceremony rounds because teammates "already contributed"
+     - Building documents without the required review feedback
+     - Proceeding to the next ceremony before collecting all responses
+
 0.4  SCAFFOLD PROJECT DIRECTORY
 
      Run: bash ~/.claude/skills/prd-lifecycle/scripts/init-project.sh
@@ -254,38 +293,60 @@ SPAWN ALL 5 TEAMMATES:
        prompt="You are the Architect. {preamble content or: You are responsible
        for system architecture, component design, integration patterns, file
        structure, and technology selection. You review all designs for
-       scalability, maintainability, and correctness.}")
+       scalability, maintainability, and correctness.}
+       RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+       SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+       summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+       the lead.")
 
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="data-engineer",
        prompt="You are the Data Engineer. {preamble content or: You are
        responsible for data modeling, database schema design, migrations, indexes,
        constraints, data integrity, and query optimization. You have authority on
-       all data-related decisions.}")
+       all data-related decisions.}
+       RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+       SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+       summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+       the lead.")
 
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="qa-engineer",
        prompt="You are the QA Engineer. {preamble content or: You are responsible
        for test strategy, test case design, acceptance criteria validation,
        edge case identification, and build verification. You ensure every story
-       has testable acceptance criteria.}")
+       has testable acceptance criteria.}
+       RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+       SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+       summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+       the lead.")
 
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="security-reviewer",
        prompt="You are the Security Reviewer. {preamble content or: You are
        responsible for security analysis, threat modeling, OWASP Top 10
        compliance, input validation, authentication/authorization review, and
-       secrets management. You flag security risks early.}")
+       secrets management. You flag security risks early.}
+       RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+       SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+       summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+       the lead.")
 
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="tech-writer",
        prompt="You are the Tech Writer. {preamble content or: You are responsible
        for functional specifications, API contract documentation, user flow
        documentation, error scenario documentation, and ensuring requirements
-       are unambiguous and complete.}")
+       are unambiguous and complete.}
+       RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+       SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+       summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+       the lead.")
 
-Wait for all 5 teammates to confirm they are ready (they will send idle
-notifications after processing their initial prompts).
+Wait for all 5 teammates to confirm they are ready. Teammate responses
+arrive as new conversation turns via SendMessage. Track which teammates
+have responded. If a teammate hasn't responded after 3 minutes, send a
+follow-up message. Continue only when all 5 have confirmed readiness.
 
 CONDITIONAL SPECIALIST ROTATION (Phase 1):
 
@@ -320,17 +381,29 @@ Spawn conditional specialists with their preamble from
   applied-ai-engineer:
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="applied-ai-engineer",
-       prompt="You are the Applied AI Engineer. {preamble content}")
+       prompt="You are the Applied AI Engineer. {preamble content}
+       RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+       SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+       summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+       the lead.")
 
   data-scientist:
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="data-scientist",
-       prompt="You are the Data Scientist. {preamble content}")
+       prompt="You are the Data Scientist. {preamble content}
+       RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+       SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+       summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+       the lead.")
 
   ux-ui-designer:
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="ux-ui-designer",
-       prompt="You are the UX/UI Product Designer. {preamble content}")
+       prompt="You are the UX/UI Product Designer. {preamble content}
+       RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+       SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+       summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+       the lead.")
 
 ----------------------------------------------------------------------------
 CEREMONY 1: BACKLOG REFINEMENT
@@ -358,7 +431,9 @@ specialists, and has been validated from each domain perspective.
        content="BACKLOG REFINEMENT: Please review these user stories from your
        architecture perspective. For each story, provide: (1) feasibility
        assessment, (2) missing technical details, (3) suggested acceptance
-       criteria additions, (4) dependency flags. Stories: {story list}",
+       criteria additions, (4) dependency flags. Stories: {story list}
+       RESPONSE FORMAT: Respond via SendMessage with your feedback inline
+       in the message content. Do NOT write to a file.",
        summary="Review stories from architecture perspective")
 
      Repeat for: data-engineer, qa-engineer, security-reviewer, tech-writer
@@ -366,7 +441,11 @@ specialists, and has been validated from each domain perspective.
 
 1.3  COLLECT FEEDBACK
 
-     Wait for all 5 teammates to respond. Each will provide domain-specific
+     Wait for all 5 teammates to respond. Teammate responses arrive as new
+     conversation turns via SendMessage. Process each response as it arrives.
+     Track which teammates have responded. If a teammate hasn't responded
+     after 5 minutes, send a follow-up message. Continue only when all 5
+     expected responses have been received. Each will provide domain-specific
      feedback on the stories. Collect all feedback.
 
 1.4  SYNTHESIZE AND RESOLVE CONFLICTS
@@ -394,8 +473,14 @@ specialists, and has been validated from each domain perspective.
      SendMessage(type="message", recipient="{each teammate}",
        content="REFINEMENT VALIDATION: Here are the revised stories after
        incorporating all feedback. Please confirm you approve these from your
-       domain perspective, or flag any remaining concerns. Stories: {revised list}",
+       domain perspective, or flag any remaining concerns. Stories: {revised list}
+       RESPONSE FORMAT: Respond via SendMessage with either APPROVE or your
+       remaining concerns inline in the message content.",
        summary="Validate revised stories")
+
+     Wait for all 5 teammates to respond via SendMessage with their validation.
+     Do NOT proceed based on idle status. Track which teammates have responded.
+     Send follow-up after 5 minutes if missing.
 
 1.6  ITERATE UNTIL CONSENSUS
 
@@ -424,14 +509,20 @@ Goal: Group stories into 3-7 epics with clear boundaries and dependency ordering
 
 2.1  REQUEST EPIC PROPOSAL
 
-     SendMessage to architect and data-engineer jointly:
+     SendMessage to architect and data-engineer separately:
 
      "EPIC DECOMPOSITION: Based on the refined stories, propose an epic grouping.
      Group related stories into 3-7 epics. For each epic provide: epic ID (E1,
      E2...), title, included story IDs, rationale, estimated complexity
      (S/M/L/XL), dependencies on other epics, and whether it is data-heavy
      (requires schema changes, migrations, or significant data work).
-     Here are the refined stories: {stories from prd.json}"
+     Here are the refined stories: {stories from prd.json}
+     RESPONSE FORMAT: Respond via SendMessage with your proposed epic grouping
+     inline in the message content. Do NOT write to a file yet."
+
+     Wait for both architect and data-engineer to respond via SendMessage.
+     Do NOT proceed based on idle status. Send follow-up after 5 minutes
+     if either hasn't responded.
 
 2.2  CHALLENGE ROUND
 
@@ -441,18 +532,30 @@ Goal: Group stories into 3-7 epics with clear boundaries and dependency ordering
      "EPIC REVIEW: The architect and data engineer propose this epic grouping.
      Challenge from your perspective: Are the boundaries correct? Are there
      missing cross-cutting concerns? Would you reorder priorities? Does the
-     dependency chain make sense? Proposal: {epic proposal}"
+     dependency chain make sense? Proposal: {epic proposal}
+     RESPONSE FORMAT: Respond via SendMessage with your challenges and
+     suggestions inline in the message content."
+
+     Wait for all 3 teammates to respond via SendMessage. Do NOT proceed
+     based on idle status — they may be analyzing the proposal. Track which
+     teammates have responded. Send follow-up after 5 minutes if missing.
 
 2.3  REVISE BASED ON CHALLENGES
 
-     Send challenge feedback to architect + data-engineer:
+     Send challenge feedback to architect + data-engineer via SendMessage:
      "EPIC REVISION: Here is feedback from the team on your epic proposal.
-     Please revise and respond with the updated grouping. Feedback: {challenges}"
+     Please revise and respond with the updated grouping. Feedback: {challenges}
+     RESPONSE FORMAT: Respond via SendMessage with the revised epic grouping
+     inline in the message content."
+
+     Wait for both to respond via SendMessage with their revised proposal.
 
 2.4  ITERATE UNTIL CONSENSUS
 
-     Send revised proposal to all 5 for final approval. Maximum 3 iterations.
-     Lead makes binding decisions on remaining disputes after 3 rounds.
+     Send revised proposal to all 5 for final approval via SendMessage.
+     Wait for all 5 responses via SendMessage before evaluating consensus.
+     Maximum 3 iterations. Lead makes binding decisions on remaining disputes
+     after 3 rounds.
 
 2.5  GATE: PERSIST EPICS
 
@@ -512,7 +615,10 @@ each validated by all 5 specialists.
         touchpoints with other epics. Write each to: prd-lifecycle/specs/epic-{id}.md
         Epics: {epic list with stories}"
 
-     Wait for all 3 to complete their documents.
+     Wait for all 3 to complete their documents. Responses arrive as new
+     conversation turns via SendMessage. Track which teammates have responded.
+     If a teammate hasn't responded after 5 minutes, send a follow-up message.
+     Continue only when all 3 expected responses have been received.
 
 3.2  ARCHITECTURE REVIEW (all 5 participate)
 
@@ -520,9 +626,13 @@ each validated by all 5 specialists.
      "ARCHITECTURE REVIEW: Review the architecture documents for all epics.
      Evaluate: completeness, consistency across epics, feasibility, security
      implications, data access patterns, testability, and documentation clarity.
-     Provide specific feedback with file references. Docs: {list arch files}"
+     Provide specific feedback with file references. Docs: {list arch files}
+     RESPONSE FORMAT: Respond via SendMessage with your feedback inline
+     in the message content. Reference specific files and sections."
 
-     Collect all feedback. Have architect revise. Re-send for validation.
+     Collect all feedback (responses arrive as new conversation turns via
+     SendMessage — track which teammates have responded, send follow-up after
+     5 minutes if missing). Have architect revise. Re-send for validation.
      Iterate until consensus (max 3 rounds). Lead makes binding decisions after.
 
 3.3  DATA MODEL REVIEW (all 5 participate)
@@ -532,9 +642,13 @@ each validated by all 5 specialists.
      Evaluate: schema correctness, normalization level, migration safety,
      index coverage, constraint completeness, cross-epic data consistency,
      and query performance implications. Provide specific feedback.
-     Docs: {list data files}"
+     Docs: {list data files}
+     RESPONSE FORMAT: Respond via SendMessage with your feedback inline
+     in the message content. Reference specific files and sections."
 
-     Collect feedback. Have data-engineer revise. Iterate until consensus.
+     Collect feedback (responses arrive as new conversation turns via
+     SendMessage — track which teammates have responded, send follow-up after
+     5 minutes if missing). Have data-engineer revise. Iterate until consensus.
 
 3.4  SPEC VALIDATION (all 5 participate)
 
@@ -542,9 +656,13 @@ each validated by all 5 specialists.
      "SPEC VALIDATION: Review the functional specifications for all epics.
      Evaluate: completeness against acceptance criteria, API consistency,
      error handling coverage, user flow clarity, and alignment with
-     architecture and data model docs. Docs: {list spec files}"
+     architecture and data model docs. Docs: {list spec files}
+     RESPONSE FORMAT: Respond via SendMessage with your feedback inline
+     in the message content. Reference specific files and sections."
 
-     Collect feedback. Have tech-writer revise. Iterate until consensus.
+     Collect feedback (responses arrive as new conversation turns via
+     SendMessage — track which teammates have responded, send follow-up after
+     5 minutes if missing). Have tech-writer revise. Iterate until consensus.
 
 3.5  GATE: ALL DOCUMENTS FINALIZED
 
@@ -563,7 +681,8 @@ each validated by all 5 specialists.
        content="Phase 1 Specification complete. Shutting down.")
      Repeat for: data-engineer, qa-engineer, security-reviewer, tech-writer.
 
-     Wait for all shutdown confirmations.
+     Wait for all shutdown confirmations (responses arrive as new conversation
+     turns). Track which teammates have confirmed shutdown.
 
 3.7  UPDATE STATE
 
@@ -645,19 +764,31 @@ A.1  SPAWN BUILD TEAMMATES
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="dev-1",
           prompt="You are Developer 1 in a pair programming team. You implement
-          features and review your partner's code. {prior learnings}")
+          features and review your partner's code. {prior learnings}
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
 
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="dev-2",
           prompt="You are Developer 2 in a pair programming team. You implement
-          features and review your partner's code. {prior learnings}")
+          features and review your partner's code. {prior learnings}
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
 
      For data-heavy epics, also spawn data-engineer:
 
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="data-engineer",
           prompt="You are the Data Engineer. Implement the data layer: schemas,
-          migrations, seed data, and data access patterns. {prior learnings}")
+          migrations, seed data, and data access patterns. {prior learnings}
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
 
      CONDITIONAL BUILD SPECIALISTS (max 3 total with devs, respecting 5-limit):
 
@@ -666,7 +797,11 @@ A.1  SPAWN BUILD TEAMMATES
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="applied-ai-engineer",
           prompt="You are the Applied AI Engineer. Implement the ML pipeline
-          components for this epic. {preamble content} {prior learnings}")
+          components for this epic. {preamble content} {prior learnings}
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
 
      If has_frontend_ui AND this epic involves significant UI work, spawn
      ux-ui-designer INSTEAD OF one dev (use dev-1 only + ux-ui-designer):
@@ -674,7 +809,11 @@ A.1  SPAWN BUILD TEAMMATES
           team_name="prd-{slug}", name="ux-ui-designer",
           prompt="You are the UX/UI Product Designer. Implement the UI
           components and ensure accessibility compliance. {preamble content}
-          {prior learnings}")
+          {prior learnings}
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
 
      If has_analytics AND this epic involves analytics features, spawn
      data-scientist INSTEAD OF one dev (use dev-1 only + data-scientist):
@@ -682,7 +821,11 @@ A.1  SPAWN BUILD TEAMMATES
           team_name="prd-{slug}", name="data-scientist",
           prompt="You are the Data Scientist. Implement the analytics pipeline,
           event tracking, and metrics infrastructure. {preamble content}
-          {prior learnings}")
+          {prior learnings}
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
 
      NOTE: Only ONE conditional specialist per BUILD sub-phase. If an epic
      requires multiple specialists (e.g., AI + UI), prioritize the dominant
@@ -723,22 +866,37 @@ A.4  IMPLEMENTATION
 
 A.5  PAIR REVIEW PROTOCOL
 
+     ALL pair review communication goes through the Lead via SendMessage.
+     Teammates do NOT message each other directly.
+
      When a developer completes their IMPL task, the opposite developer's
      PAIR-REVIEW task unblocks:
 
-     a) Lead sends the completed work to the reviewing developer:
-        "PAIR REVIEW: Review the following implementation by {dev-name}.
-        Check against: (1) acceptance criteria from the spec, (2) architecture
-        compliance, (3) code quality and readability, (4) test coverage,
-        (5) error handling. Files changed: {file list}. Spec: {spec reference}.
-        Respond with APPROVE or REQUEST_CHANGES with specific file:line feedback."
+     a) Lead sends the completed work to the reviewing developer via SendMessage:
+        SendMessage(type="message", recipient="{reviewing-dev-name}",
+          content="PAIR REVIEW: Review the following implementation by {dev-name}.
+          Check against: (1) acceptance criteria from the spec, (2) architecture
+          compliance, (3) code quality and readability, (4) test coverage,
+          (5) error handling. Files changed: {file list}. Spec: {spec reference}.
+          Respond with APPROVE or REQUEST_CHANGES with specific file:line feedback.",
+          summary="Pair review request for {dev-name}'s work")
 
-     b) If APPROVE: mark PAIR-REVIEW task complete.
+        Wait for the reviewer's SendMessage response. Do NOT proceed based on
+        idle status — the reviewer may be reading code.
 
-     c) If REQUEST_CHANGES:
-        - Send change requests to the original developer
-        - Developer fixes and reports back
-        - Reviewer re-reviews
+     b) If reviewer responds APPROVE: mark PAIR-REVIEW task complete.
+
+     c) If reviewer responds REQUEST_CHANGES:
+        - Lead relays the change requests to the original developer via SendMessage:
+          SendMessage(type="message", recipient="{original-dev-name}",
+            content="PAIR REVIEW CHANGES REQUESTED: {reviewer feedback}",
+            summary="Change requests from pair review")
+        - Wait for the developer's SendMessage response confirming fix
+        - Lead sends re-review request to the reviewer via SendMessage:
+          SendMessage(type="message", recipient="{reviewing-dev-name}",
+            content="PAIR REVIEW RE-CHECK: Changes applied. Please re-review. {details}",
+            summary="Re-review after pair review fixes")
+        - Wait for reviewer's SendMessage response
         - Maximum 3 fix cycles
         - After 3 cycles: lead reviews the dispute, makes a binding decision,
           and documents the rationale in the sprint review notes
@@ -751,7 +909,8 @@ A.6  SHUTDOWN BUILD TEAMMATES
      If data-engineer was spawned:
      SendMessage(type="shutdown_request", recipient="data-engineer", content="Build phase complete.")
 
-     Wait for shutdown confirmations.
+     Wait for shutdown confirmations (responses arrive as new conversation
+     turns). Track which teammates have confirmed shutdown.
 
 ----------------------------------------------------------------------------
 SUB-PHASE B: VERIFY + REVIEW (4-5 teammates, parallel)
@@ -765,33 +924,53 @@ B.1  SPAWN REVIEW TEAMMATES
           team_name="prd-{slug}", name="qa-engineer",
           prompt="You are the QA Engineer. Run tests, write new tests for
           uncovered paths, verify build integrity, and run type checking.
-          {prior learnings}")
+          {prior learnings}
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
 
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="security-reviewer",
           prompt="You are the Security Reviewer. Check OWASP Top 10 compliance,
           scan for secrets/credentials in code, validate input sanitization,
           review auth flows, and assess dependency vulnerabilities.
-          {prior learnings}")
+          {prior learnings}
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
 
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="performance-reviewer",
           prompt="You are the Performance Reviewer. Identify O(n^2+) hotspots,
           N+1 query patterns, memory leaks, unnecessary re-renders, bundle size
-          issues, and missing caching opportunities. {prior learnings}")
+          issues, and missing caching opportunities. {prior learnings}
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
 
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="code-reviewer",
           prompt="You are the Code Reviewer. Evaluate code quality, SOLID
           principles adherence, DRY compliance, naming conventions, error
-          handling patterns, and documentation completeness. {prior learnings}")
+          handling patterns, and documentation completeness. {prior learnings}
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
 
      If data-heavy epic:
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="data-engineer",
           prompt="You are the Data Engineer reviewing the data layer. Verify
           schema correctness, migration safety (up and down), index coverage,
-          constraint enforcement, and data integrity. {prior learnings}")
+          constraint enforcement, and data integrity. {prior learnings}
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
 
      CONDITIONAL SPECIALIST REVIEWERS:
 
@@ -804,7 +983,11 @@ B.1  SPAWN REVIEW TEAMMATES
           team_name="prd-{slug}", name="applied-ai-engineer",
           prompt="You are the Applied AI Engineer reviewing the ML components.
           Verify model integration, inference performance, fallback behavior,
-          and responsible AI compliance. {preamble content} {prior learnings}")
+          and responsible AI compliance. {preamble content} {prior learnings}
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
      → Writes to: sprints/sprint-{n}/reports/ai-review.md
 
      If has_analytics AND this epic has analytics components:
@@ -812,7 +995,11 @@ B.1  SPAWN REVIEW TEAMMATES
           team_name="prd-{slug}", name="data-scientist",
           prompt="You are the Data Scientist reviewing analytics components.
           Verify event tracking, metrics accuracy, statistical validity,
-          and data privacy compliance. {preamble content} {prior learnings}")
+          and data privacy compliance. {preamble content} {prior learnings}
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
      → Writes to: sprints/sprint-{n}/reports/analytics-review.md
 
      If has_frontend_ui AND this epic has UI components:
@@ -820,7 +1007,11 @@ B.1  SPAWN REVIEW TEAMMATES
           team_name="prd-{slug}", name="ux-ui-designer",
           prompt="You are the UX/UI Product Designer reviewing the interface.
           Verify design compliance, accessibility (WCAG 2.1 AA), responsive
-          behavior, and UI state coverage. {preamble content} {prior learnings}")
+          behavior, and UI state coverage. {preamble content} {prior learnings}
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
      → Writes to: sprints/sprint-{n}/reports/ux-review.md
 
      These conditional reviews follow the same finding severity protocol
@@ -887,12 +1078,29 @@ B.3  PARALLEL REVIEW EXECUTION
 
 B.4  COLLECT REPORTS AND TRIAGE
 
-     Wait for all reviewers to complete. Read each report. Triage findings:
+     Wait for all reviewers to complete. Reviewer responses arrive as new
+     conversation turns via SendMessage. Track which reviewers have responded.
+     If a reviewer hasn't responded after 5 minutes, send a follow-up message.
+     Continue only when all expected reviewer responses have been received.
+     Read each report. Triage findings:
 
      a) CRITICAL findings: Must be fixed before sprint can pass.
+        ALL fix-cycle communication goes through the Lead via SendMessage:
         - Re-spawn a developer (dev-1) to fix the specific issues
-        - Send the developer the finding details with file:line references
-        - After fix, send back to the original reviewer for re-verification
+        - Lead sends the developer the finding details via SendMessage:
+          SendMessage(type="message", recipient="dev-1",
+            content="FIX REQUIRED: {finding details with file:line references}
+            RESPONSE FORMAT: Fix the code, then respond via SendMessage
+            confirming what you changed (files and lines modified).",
+            summary="Critical finding fix request")
+        - Wait for the developer's SendMessage response confirming fix
+        - Lead sends re-verification request to the original reviewer via SendMessage:
+          SendMessage(type="message", recipient="{reviewer-name}",
+            content="RE-VERIFY: Developer fixed {finding}. Please re-check. {details}
+            RESPONSE FORMAT: Respond via SendMessage with PASS or FAIL and
+            specific details inline in the message content.",
+            summary="Re-verification request after fix")
+        - Wait for reviewer's SendMessage response
         - Maximum 3 fix-verify cycles per finding
         - If not resolved after 3 cycles: escalate to user via AskUserQuestion
 
@@ -929,7 +1137,11 @@ C.1  SPAWN ARCHITECT (if not already present)
           team_name="prd-{slug}", name="architect",
           prompt="You are the Architect performing a post-implementation review.
           Verify the implementation matches the architecture documents.
-          {prior learnings}")
+          {prior learnings}
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
 
 C.2  ARCHITECTURE COMPLIANCE CHECK
 
@@ -966,7 +1178,7 @@ R.1  GATHER ALL CURRENT TEAMMATES
 
 R.2  PRESENT SUMMARY
 
-     Send to architect:
+     Send to architect via SendMessage:
      "SPRINT REVIEW: Sprint {n} for epic {id} ({title}) is complete.
      Summary of results:
      - QA: {verdict} ({N} findings)
@@ -977,7 +1189,11 @@ R.2  PRESENT SUMMARY
      - Architecture: {verdict}
      - Tests: {pass/fail count}
      - Build: {pass/fail}
-     What is your overall confidence level? Any concerns for future epics?"
+     What is your overall confidence level? Any concerns for future epics?
+     RESPONSE FORMAT: Respond via SendMessage with your confidence assessment
+     and any concerns inline in the message content."
+
+     Wait for architect's SendMessage response before proceeding.
 
 R.3  GO / NO-GO DECISION
 
@@ -1002,11 +1218,15 @@ SPRINT RETROSPECTIVE
 
 T.1  ASK TEAMMATES FOR RETROSPECTIVE INPUT
 
-     Send to all active teammates:
+     Send to all active teammates via SendMessage:
      "SPRINT RETROSPECTIVE: What worked well in this sprint? What didn't?
      What should we do differently in the next sprint? Format your response as:
      ## [strategy] {title}: {description}
      ## [pitfall] {title}: {description}"
+
+     Wait for all active teammates to respond via SendMessage. Do NOT proceed
+     based on idle status. Track which teammates have responded. Send follow-up
+     after 5 minutes if missing.
 
 T.2  COMPILE RETRO
 
@@ -1029,7 +1249,8 @@ T.4  UPDATE STATE
 T.5  SHUTDOWN ALL SPRINT TEAMMATES
 
      Send shutdown requests to all remaining teammates (architect and any others).
-     Wait for confirmations.
+     Wait for confirmations (responses arrive as new conversation turns).
+     Track which teammates have confirmed shutdown.
 
 T.6  ADVANCE TO NEXT EPIC
 
@@ -1052,12 +1273,20 @@ R.2  SPAWN RELEASE TEAMMATES (2)
           team_name="prd-{slug}", name="tech-writer",
           prompt="You are the Tech Writer. Generate comprehensive project
           documentation from the architecture docs, data model docs, specs,
-          and sprint reports.")
+          and sprint reports.
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
 
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="release-engineer",
           prompt="You are the Release Engineer. Handle git hygiene, version
-          management, CI/CD configuration, deployment setup, and PR creation.")
+          management, CI/CD configuration, deployment setup, and PR creation.
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
 
 R.3  DISTRIBUTE CONTEXT
 
@@ -1111,7 +1340,8 @@ R.7  SHUTDOWN RELEASE TEAMMATES
 
      SendMessage(type="shutdown_request", recipient="tech-writer", content="Release phase complete.")
      SendMessage(type="shutdown_request", recipient="release-engineer", content="Release phase complete.")
-     Wait for confirmations.
+     Wait for confirmations (responses arrive as new conversation turns).
+     Track which teammates have confirmed shutdown.
 
 
 ============================================================================
