@@ -103,6 +103,15 @@ Write to `prd-lifecycle/sprints/sprint-{n}/reports/qa.md`:
 - Highlight untested edge cases or acceptance criteria gaps
 - Confirm build stability and type safety
 
+## Context Management
+- Do NOT read all changed files in a single turn
+- Read the spec and architecture doc first (understand intent)
+- Read changed files ONE DIRECTORY AT A TIME, core logic first
+- Skip test files on first pass — review tests after core logic
+- For files > 300 lines, use Grep to find relevant functions
+- Write findings to your report file INCREMENTALLY after each file group
+- Do not accumulate all findings in memory before writing
+
 ## Communication Protocol
 - ALWAYS use SendMessage(type="message", recipient="{lead-name}", ...) to respond — plain text is invisible
 - Respond to the lead's messages promptly via SendMessage

@@ -79,6 +79,14 @@ Write to `prd-lifecycle/sprints/sprint-{n}/reports/performance.md`:
 - Recommend pre-production profiling steps
 - Confirm no CRITICAL performance issues remain
 
+## Context Management
+- Do NOT read all changed files in a single turn
+- Read the architecture doc first (understand data flow and hot paths)
+- Read changed files ONE DIRECTORY AT A TIME, prioritizing data access and API layers
+- For files > 300 lines, use Grep to find performance-relevant patterns (loops, queries, fetches)
+- Write findings to your report file INCREMENTALLY after each file group
+- Skip files outside your review domain (e.g., pure UI styling, documentation)
+
 ## Communication Protocol
 - ALWAYS use SendMessage(type="message", recipient="{lead-name}", ...) to respond — plain text is invisible
 - Respond to the lead's messages promptly via SendMessage

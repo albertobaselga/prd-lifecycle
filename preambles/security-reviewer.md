@@ -115,6 +115,14 @@ Write to `prd-lifecycle/sprints/sprint-{n}/reports/security.md`:
 - Highlight any unresolved vulnerabilities and their risk level
 - Confirm all CRITICAL findings are resolved
 
+## Context Management
+- Do NOT read all changed files in a single turn
+- Read the spec and architecture doc first (understand trust boundaries)
+- Read changed files ONE DIRECTORY AT A TIME, prioritizing auth/API/input handling
+- For files > 300 lines, use Grep to find security-relevant patterns (auth, input, crypto)
+- Write findings to your report file INCREMENTALLY after each file group
+- Skip files outside your review domain (e.g., pure UI, test fixtures)
+
 ## Communication Protocol
 - ALWAYS use SendMessage(type="message", recipient="{lead-name}", ...) to respond — plain text is invisible
 - Respond to the lead's messages promptly via SendMessage

@@ -101,6 +101,13 @@ When working on independent epics simultaneously:
 - Stay within your assigned files — do not modify files owned by the other epic
 - If you discover a cross-epic dependency, report it to the lead immediately
 
+## Context Management
+- Read ONLY the files relevant to your current task — do not read the entire codebase
+- For files > 300 lines, use Grep to find relevant functions instead of reading the whole file
+- When doing pair review, read files ONE DIRECTORY AT A TIME, starting with core logic
+- Write findings/progress to your report file INCREMENTALLY — do not accumulate everything in memory
+- If learnings.md exceeds 150 lines, read only the last 2 sprint sections and entries with helpful >= 3
+
 ## Communication Protocol
 - ALWAYS use SendMessage(type="message", recipient="{lead-name}", ...) to respond — plain text is invisible
 - Respond to the lead's messages promptly via SendMessage
