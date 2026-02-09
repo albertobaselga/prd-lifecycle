@@ -126,7 +126,7 @@ RESUME CHECK (run FIRST, before anything else):
        This is a RESUME scenario. Do NOT re-run init-project.sh (it would
        overwrite existing state). Instead:
        1. Read prd-lifecycle/state.json — note `phase`, `step`, `team_name`,
-          `current_sprint`, `epics_completed`, `epics_remaining`
+          `current_sprint`, `current_epic`, `epics_completed`, `epics_remaining`
        2. Read prd-lifecycle/prd.json for the PRD content and slug
        3. Read prd-lifecycle/learnings.md for accumulated context
        4. Re-create the team: TeamCreate(team_name="{team_name from state}")
@@ -793,6 +793,7 @@ S.1  INITIALIZE SPRINT DIRECTORY
 
      Update state:
      bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step sprint_setup
+     bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set current_epic E{id}
 
 S.2  LOAD PRIOR LEARNINGS
 
@@ -1377,6 +1378,7 @@ T.3  AGGREGATE LEARNINGS
 T.4  UPDATE STATE
 
      Run: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh add-completed E{id}
+     Run: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set current_epic ""
      Run: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set current_sprint {n+1}
      Run: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step sprint_retro_done
 
@@ -1799,6 +1801,7 @@ RESUME:
   - step: fine-grained position within the current phase (see table below)
   - status: "active" | "paused" | "completed"
   - current_sprint: number (which sprint we're on or about to start)
+  - current_epic: the epic ID being implemented in the current sprint (empty if between sprints)
   - team_name: the team name used for TeamCreate (e.g., "prd-task-api")
   - epics_completed: array of epic IDs that have passed all gates
   - epics_remaining: array of epic IDs still to be executed

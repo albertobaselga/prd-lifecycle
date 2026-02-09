@@ -16,6 +16,7 @@ cat > "$BASE/state.json" << EOF
   "step": "init",
   "status": "active",
   "current_sprint": 0,
+  "current_epic": "",
   "team_name": "",
   "epics_completed": [],
   "epics_remaining": [],
