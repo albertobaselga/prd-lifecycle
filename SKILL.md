@@ -52,13 +52,13 @@ text PRDs will be refined during Ceremony 1 (Backlog Refinement).
 <Do_Not_Use_When>
 Do NOT activate this skill when the request is:
 
-- A single feature implementation — use a standard executor agent instead
+- A single feature implementation — use a simpler agent workflow instead
 - A task without a formal PRD — there must be a requirements document to drive from
 - A quick prototype or proof of concept — this skill enforces full ceremony gates
   which add overhead inappropriate for throwaway code
 - A simple bug fix — use targeted debugging and fix workflows instead
 - A code review of existing code — use dedicated review skills instead
-- A refactoring task — use architect + executor workflows instead
+- A refactoring task — use a targeted refactoring workflow instead
 
 If in doubt, ask the user: "This looks like it could be a full PRD lifecycle run.
 Do you want to activate the full Scrum ceremony process, or would a simpler
@@ -143,7 +143,9 @@ RESUME CHECK (run FIRST, before anything else):
           - "sprint_build" → re-spawn BUILD teammates, continue current sprint
           - "sprint_build_done" → start VERIFY sub-phase
           - "sprint_verify" → re-spawn VERIFY teammates, continue reviews
-          - "sprint_verify_done" → start SPRINT REVIEW
+          - "sprint_verify_done" → start ARCHITECTURE REVIEW (C.1)
+          - "sprint_arch_review" → re-spawn architect, continue arch review
+          - "sprint_arch_done" → start SPRINT REVIEW (R.1)
           - "sprint_review_done" → start SPRINT RETROSPECTIVE
           - "sprint_retro_done" → advance to next epic or Phase 3
           - "release_started" → re-spawn release teammates
@@ -232,23 +234,16 @@ CRITICAL — IDLE STATUS AND RESPONSE WAITING:
      - Building documents without the required review feedback
      - Proceeding to the next ceremony before collecting all responses
 
-CRITICAL — EXECUTION MODEL OVERRIDE:
+EXECUTION MODEL:
 
      This skill uses Claude Code Agent Teams for ALL work. Your Team
      teammates (dev-1, dev-2, data-engineer, architect, qa-engineer, etc.)
      ARE your execution mechanism.
 
      YOU MUST:
-     - Use Task(team_name="prd-{slug}", ...) to spawn teammates for ALL
-       implementation, review, and documentation work
-     - Send work to teammates via SendMessage — they write the code, run
-       tests, and report back
-     - NEVER use oh-my-claudecode:executor, oh-my-claudecode:deep-executor,
-       or any other OMC subagent for code changes during this skill
+     - Use Task(team_name="prd-{slug}", ...) to spawn teammates
+     - Send work to teammates via SendMessage — they write code, run tests, report back
      - NEVER write code yourself — delegate to your Team teammates
-
-     This OVERRIDES any CLAUDE.md instruction about "delegate to executor."
-     In prd-lifecycle, your Team IS the executor.
 
 0.4  SCAFFOLD PROJECT DIRECTORY
 
@@ -801,6 +796,16 @@ S.2  LOAD PRIOR LEARNINGS
      from all prior sprints. All teammates spawned in this sprint will receive
      these learnings as part of their context.
 
+     CONTEXT MANAGEMENT (applies to ALL context distribution steps):
+
+     When distributing context to teammates, the Lead MUST:
+     a) Send file PATHS, not file contents — let teammates read files themselves
+     b) For changed-file lists: send paths grouped by directory
+     c) For fix cycles: send only the specific finding (file:line + description),
+        NOT the full review report
+     d) For learnings.md: if > 150 lines, tell teammates to read only the
+        last 2 sprint sections and any entries with helpful >= 3
+
 S.3  CREATE TASKS WITH DEPENDENCY GRAPH
 
      Use TaskCreate to create all tasks for this sprint. Use TaskUpdate with
@@ -1156,6 +1161,15 @@ B.2  DISTRIBUTE REVIEW CONTEXT
        * code-reviewer → sprints/sprint-{n}/reports/code-review.md
        * data-engineer → sprints/sprint-{n}/reports/data-review.md
 
+     Include this instruction in every review context message:
+     "CONTEXT MANAGEMENT: Do NOT read all files in a single turn.
+     1. Read the spec and architecture doc first (understand intent)
+     2. Read changed files ONE DIRECTORY AT A TIME, core logic first
+     3. Skip test files on first pass — review after core logic
+     4. For files > 300 lines, use Grep to find relevant functions
+     5. Write findings to your report file INCREMENTALLY after each
+        file group — do not accumulate all findings in memory"
+
 B.3  PARALLEL REVIEW EXECUTION
 
      All reviewers work simultaneously. Each produces a report with:
@@ -1210,22 +1224,36 @@ B.4  COLLECT REPORTS AND TRIAGE
      Read each report. Triage findings:
 
      a) CRITICAL findings: Must be fixed before sprint can pass.
-        ALL fix-cycle communication goes through the Lead via SendMessage:
-        - Re-spawn a developer (dev-1) to fix the specific issues
-        - Lead sends the developer the finding details via SendMessage:
+        ALL fix-cycle communication goes through the Lead via SendMessage.
+        HYBRID FIX CYCLE (context-aware):
+
+        Cycle 1 — Reuse existing dev-1 (already has project context):
+        - Send ONLY the finding details: file:line + description + fix guidance
+        - Do NOT re-send the full review report or file contents
           SendMessage(type="message", recipient="dev-1",
-            content="FIX REQUIRED: {finding details with file:line references}
-            RESPONSE FORMAT: Fix the code, then respond via SendMessage
-            confirming what you changed (files and lines modified).",
+            content="FIX REQUIRED: {file}:{line} — {finding description}.
+            Fix guidance: {specific fix suggestion}.
+            RESPONSE FORMAT: Fix the code, then respond confirming
+            what you changed (files and lines modified).",
             summary="Critical finding fix request")
         - Wait for the developer's SendMessage response confirming fix
-        - Lead sends re-verification request to the original reviewer via SendMessage:
+
+        Cycle 2+ — If dev-1's context is exhausted or fix failed:
+        - Shut down dev-1 via SendMessage(type="shutdown_request")
+        - Spawn a FRESH developer with MINIMAL context:
+          Task(subagent_type="general-purpose", name="dev-fix",
+            prompt="Fix {file}:{line} — {finding}. Read ONLY that file.
+            Fix the issue and report what you changed.")
+        - This fresh agent has clean context, avoiding accumulation
+
+        Re-verification — TARGETED, not full re-review:
+        - Send to the original reviewer:
           SendMessage(type="message", recipient="{reviewer-name}",
-            content="RE-VERIFY: Developer fixed {finding}. Please re-check. {details}
-            RESPONSE FORMAT: Respond via SendMessage with PASS or FAIL and
-            specific details inline in the message content.",
-            summary="Re-verification request after fix")
+            content="RE-VERIFY: Re-read ONLY {file}:{lines changed}.
+            PASS or FAIL + one-line reason.",
+            summary="Targeted re-verification request")
         - Wait for reviewer's SendMessage response
+
         - Maximum 3 fix-verify cycles per finding
         - If not resolved after 3 cycles: escalate to user via AskUserQuestion
 
@@ -1252,6 +1280,9 @@ B.6  SHUTDOWN REVIEW TEAMMATES (except any needed for arch review)
      If architect is needed for Sub-Phase C and a slot is available, keep one
      reviewer slot open.
 
+     NEXT: Sub-Phase C — Architecture Review. Spawn the architect as a team
+     agent via Task(team_name=...). See C.1.
+
      Update state:
      bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step sprint_verify_done
 
@@ -1260,6 +1291,9 @@ SUB-PHASE C: ARCHITECTURE REVIEW
 ----------------------------------------------------------------------------
 
 C.1  SPAWN ARCHITECT (if not already present)
+
+     ⚠ TEAM AGENT REQUIRED — The architect MUST be spawned as a team agent
+     with Task(team_name=...) so it uses SendMessage protocol.
 
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="architect",
@@ -1273,6 +1307,8 @@ C.1  SPAWN ARCHITECT (if not already present)
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
           the lead.")
+
+     bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step sprint_arch_review
 
 C.2  ARCHITECTURE COMPLIANCE CHECK
 
@@ -1297,6 +1333,8 @@ C.3  HANDLE FINDINGS
 C.4  GATE: ARCHITECTURE REVIEW PASS
 
      arch-review.md verdict must be PASS or PASS_WITH_WARNINGS.
+
+     bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step sprint_arch_done
 
 ----------------------------------------------------------------------------
 SPRINT REVIEW
@@ -1375,6 +1413,19 @@ T.3  AGGREGATE LEARNINGS
 
      This updates prd-lifecycle/learnings.md with entries from all sprint retros.
 
+     After collect-learnings.sh completes, if learnings.md exceeds 150 lines,
+     spawn a compaction agent:
+
+     Task(subagent_type="general-purpose", model="sonnet",
+       prompt="Compact prd-lifecycle/learnings.md:
+       1. Read learnings.md and both ACE playbooks (for cross-reference)
+       2. Remove duplicate entries (same lesson, different wording)
+       3. Merge related entries into consolidated entries grouped by theme
+       4. Cap the result at 150 lines maximum
+       5. Group by theme (e.g., Architecture, Testing, Performance), not by sprint
+       6. Preserve entries with helpful >= 3 verbatim
+       7. Write the compacted result back to learnings.md")
+
 T.4  UPDATE STATE
 
      Run: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh add-completed E{id}
@@ -1425,16 +1476,27 @@ R.2  SPAWN RELEASE TEAMMATES (2)
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
           the lead.")
 
-R.3  DISTRIBUTE CONTEXT
+R.3  DISTRIBUTE CONTEXT (SCOPED PER ROLE)
 
-     Send both teammates:
-     - All sprint review summaries (sprints/sprint-*/review.md)
-     - All review reports (sprints/sprint-*/reports/*.md)
-     - All architecture docs (arch/*.md)
-     - All data model docs (data/*.md)
-     - All specs (specs/*.md)
-     - Accumulated learnings (learnings.md)
+     Do NOT send all docs to both teammates. Scope by role to avoid
+     context overload:
+
+     Tech-writer receives (documentation-focused):
+     - Architecture docs paths (arch/*.md)
+     - Spec paths (specs/*.md)
+     - Data model doc paths (data/*.md)
      - The original PRD (prd.json)
+     - Latest sprint review only (sprints/sprint-{last}/review.md)
+     - Instruction: "Read these files incrementally, one directory at a time"
+
+     Release-engineer receives (ops-focused):
+     - Sprint review summary paths (sprints/sprint-*/review.md)
+     - Accumulated learnings path (learnings.md)
+     - The original PRD (prd.json)
+     - No architecture, spec, or data model docs (not needed for release)
+
+     IMPORTANT: Send file PATHS only, not contents. Let each teammate
+     read files themselves to manage their own context budget.
 
 R.4  TECH WRITER DELIVERABLES
 
@@ -1621,13 +1683,13 @@ BAD — do NOT use this skill for these:
   This is a single issue, not a PRD. Use a targeted debugging workflow.
 
   "Add a button to the dashboard"
-  This is a single feature. Use a standard executor agent.
+  This is a single feature. Use a simpler agent workflow.
 
   "Quick prototype of auth flow"
   This is a prototype. The full ceremony overhead is inappropriate.
 
   "Refactor the database layer"
-  This is a refactoring task. Use architect + executor workflows.
+  This is a refactoring task. Use a targeted refactoring workflow.
 
   "Review this PR"
   This is a code review. Use dedicated review skills.
@@ -1822,7 +1884,9 @@ RESUME:
   | sprint_build | execution | BUILD in progress | Continue BUILD |
   | sprint_build_done | execution | Devs shut down | Start VERIFY (B.1) |
   | sprint_verify | execution | VERIFY in progress | Continue reviews |
-  | sprint_verify_done | execution | Reviews complete | Sprint REVIEW (R.1) |
+  | sprint_verify_done | execution | Reviews complete | ARCH REVIEW (C.1) |
+  | sprint_arch_review | execution | Arch review in progress | Continue C.2-C.4 |
+  | sprint_arch_done   | execution | Arch review passed | Sprint REVIEW (R.1) |
   | sprint_review_done | execution | GO decision made | Sprint RETRO (T.1) |
   | sprint_retro_done | execution | Retro complete | Next epic or Phase 3 |
   | release_started | release | Phase 3 active | Continue release |
@@ -1920,10 +1984,19 @@ TROUBLESHOOTING:
   - Write a fresh state.json reflecting the reconstructed state
 
   Memory/context pressure in long lifecycles:
-  - Learnings.md may grow large across many sprints
-  - Summarize older sprint learnings to keep the file concise
-  - When sending context to teammates, prioritize recent sprint learnings
-    and only include older entries if directly relevant to the current epic
+  - ACE playbook injection is now a ranked digest (~8KB per prompt vs previous
+    143KB). reader.sh selects top entries by helpful count + recency. Full
+    playbooks remain on disk as source of truth.
+  - reflector.py auto-compacts playbooks when they exceed 60 entries (target: 35).
+    Archives originals to *.archive.md before compacting.
+  - Learnings.md: compacted at T.3 if > 150 lines (grouped by theme, not sprint)
+  - When sending context to teammates: send file PATHS only, not contents.
+    Teammates read files themselves to manage their own context budget.
+  - All reviewer preambles include Context Management instructions for
+    incremental reading (one directory at a time, write findings incrementally).
+  - Fix cycles use hybrid approach: cycle 1 reuses existing dev, cycle 2+
+    spawns fresh developer with minimal context to avoid accumulation.
+  - R.3 release context is scoped per role (tech-writer vs release-engineer)
   - Architecture, data, and spec docs per epic are scoped — only send the
     docs for the current epic, not all epics
 </Advanced>
