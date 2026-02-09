@@ -56,23 +56,107 @@ Phase 3: RELEASE ─── docs + deployment ───────────�
 
 Max 5 concurrent teammates. Sprints are self-contained. Reviewers work **inside** each sprint, not as a separate wave.
 
+## State Machine
+
+The lifecycle is driven by a formal [XState v5](https://stately.ai/docs/xstate-v5) state machine that enforces valid transitions and provides deterministic navigation output.
+
+### Architecture
+
+```
+workflow.json          ← Machine DEFINITION (ships with skill, version-controlled)
+scripts/brain/         ← TypeScript ENGINE (loads workflow, processes events)
+{project}/state.json   ← Per-project INSTANCE (XState snapshot, enables resume)
+```
+
+- **workflow.json** defines all 19 states, transitions, guards, actions, and navigation metadata
+- **brain** is a stateless CLI engine — reads state.json, processes an event, writes new state, outputs a navigation box
+- **state.json** is the single source of truth per project — both human-readable (`jq .value`) and machine-resumable
+
+### State Tree (19 states across 4 phases)
+
+```
+prdLifecycle
+├── specification                           PHASE 1
+│   ├── init
+│   ├── scaffold_complete
+│   ├── domains_detected
+│   ├── phase1_spawned
+│   ├── ceremony1_complete
+│   └── ceremony2_complete
+├── execution                               PHASE 2
+│   ├── phase1_complete
+│   └── sprint (loop)
+│       ├── setup ─→ build ─→ build_done
+│       ├── verify ─→ verify_done
+│       ├── arch_review ─→ arch_done
+│       ├── review_done ─→ retro_done
+│       │   ├── START_SPRINT [guard: hasRemainingEpics] → setup
+│       │   └── START_RELEASE [guard: noRemainingEpics] → release
+├── release                                 PHASE 3
+│   ├── release_started
+│   └── release_done
+└── completed                               FINAL
+```
+
+### Design Invariant: Compass, Not Autopilot
+
+Every state is a stable checkpoint. No auto-transitions (`always`, `onDone`). The Lead reads the navigation box, evaluates the situation, and explicitly sends an event to advance. This ensures every state is observable, resumable after context compaction, and controllable by the Lead.
+
+### CLI Interface
+
+```bash
+# Orient (read current state, no side effects)
+bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh
+
+# Initialize a new project
+bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh --init
+
+# Advance state with key=value pairs
+bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh step=scaffold_complete team_name=prd-myproject
+
+# Or use typed event syntax
+bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh BUILD_STARTED
+```
+
+The engine outputs a formatted navigation box telling the Lead exactly where they are, what to do next, which teammates to spawn, and what file to read.
+
+### Guards
+
+| Guard | At State | Purpose |
+|-------|----------|---------|
+| `hasRemainingEpics` | `retro_done` | Allows `START_SPRINT` only when epics remain |
+| `noRemainingEpics` | `retro_done` | Allows `START_RELEASE` only when all epics done |
+
+### Context (tracked in state.json)
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `team_name` | string | Team identifier for this lifecycle |
+| `current_sprint` | number | Sprint counter (1-indexed, increments at START_SPRINT) |
+| `current_epic` | string | Epic being built in current sprint |
+| `epics_completed` | string[] | Epics that passed sprint review |
+| `epics_remaining` | string[] | Epics still to be built |
+| `has_ai_ml` | boolean | Activates `applied-ai-engineer` |
+| `has_analytics` | boolean | Activates `data-scientist` |
+| `has_frontend_ui` | boolean | Activates `ux-ui-designer` |
+
 ## Prerequisites
 
 - [Claude Code](https://claude.ai/download) CLI installed
 - [tmux](https://github.com/tmux/tmux) (required by Agent Teams)
-- python3 (used by helper scripts)
+- [Node.js](https://nodejs.org/) 18+ (used by brain engine)
 
 ## Installation
 
 ### Quick (recommended)
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/prd-lifecycle.git ~/prd-lifecycle
+git clone https://github.com/albertobaselga/prd-lifecycle.git ~/prd-lifecycle
 bash ~/prd-lifecycle/install.sh
 ```
 
 The installer will:
-1. Verify prerequisites (Claude Code, tmux, python3)
+1. Verify prerequisites (Claude Code, tmux, Node.js)
 2. Enable `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` in `~/.claude/settings.json`
 3. Create a symlink: `~/.claude/skills/prd-lifecycle` → `~/prd-lifecycle`
 
@@ -80,7 +164,7 @@ The installer will:
 
 ```bash
 # Clone
-git clone https://github.com/YOUR_USERNAME/prd-lifecycle.git ~/prd-lifecycle
+git clone https://github.com/albertobaselga/prd-lifecycle.git ~/prd-lifecycle
 
 # Enable Agent Teams
 # Add to ~/.claude/settings.json under "env":
@@ -116,11 +200,8 @@ The skill creates a `prd-lifecycle/` directory in your project root:
 
 ```
 prd-lifecycle/
-  prd.json              # Refined user stories
-  epics.json            # Approved epic breakdown
-  data-model.md         # Master data model
-  state.json            # Lifecycle state (for resume)
-  learnings.md          # ACE strategies + pitfalls
+  state.json            # XState snapshot (current position + context)
+  learnings.md          # ACE strategies + pitfalls across sprints
   arch/epic-{id}.md     # Architecture per epic
   specs/epic-{id}.md    # Functional spec per epic
   data/epic-{id}.md     # Data model per epic
@@ -131,13 +212,17 @@ prd-lifecycle/
   release/
     changelog.md
     release-notes.md
+  brain.log             # Debug log (append-only, timestamped)
 ```
 
-## File Structure
+## Skill Structure
 
 ```
 prd-lifecycle/
-  SKILL.md                              # Main orchestration (1500+ lines)
+  SKILL.md                              # Main orchestration
+  workflow.json                         # XState v5 machine definition (19 states)
+  phases/
+    phase2-sprints.md                   # Sprint execution sub-phases (BUILD, VERIFY, etc.)
   preambles/
     architect.md                        # Architecture + integration
     data-engineer.md                    # Data model, schemas, migrations
@@ -157,15 +242,28 @@ prd-lifecycle/
     final-report.md                     # Completion summary + retrospective
     sprint-retro.md                     # ACE strategy/pitfall capture
   scripts/
-    init-project.sh                     # Scaffold prd-lifecycle/ directory tree
+    brain/                              # TypeScript + XState v5 engine
+      src/                              # Source (cli, engine, navigation, output, etc.)
+      dist/brain.cjs                    # Pre-built bundle (no build step needed)
+      run.sh                            # Wrapper: node dist/brain.cjs "$@"
     init-sprint.sh                      # Create sprint-{n}/ dirs + report stubs
-    write-state.sh                      # Read/write/update state.json
     collect-learnings.sh                # Aggregate ACE entries across sprints
   docs/
     plan.md                             # Design document + architecture reference
   install.sh                            # One-command installer
   LICENSE                               # MIT
   README.md                             # This file
+```
+
+## Development
+
+The brain engine ships pre-built (`dist/brain.cjs`), so users don't need a build step. To modify the engine:
+
+```bash
+cd ~/prd-lifecycle/scripts/brain
+npm install
+npm test              # 130 tests (vitest)
+npm run build         # rebuild dist/brain.cjs
 ```
 
 ## Updating
