@@ -67,6 +67,27 @@ SETTINGS_EOF
   echo "[ok] Created settings.json with Agent Teams enabled"
 fi
 
+# --- Install team-first CLAUDE.md ---
+
+CLAUDE_MD="$HOME/.claude/CLAUDE.md"
+CLAUDE_TEAM_MD="$SCRIPT_DIR/CLAUDE.team.md"
+
+if [[ -f "$CLAUDE_MD" ]]; then
+  # Check if it's already the team-first version
+  if grep -q "Team-First Development" "$CLAUDE_MD"; then
+    echo "[ok] Team-first CLAUDE.md already installed"
+  else
+    # Back up existing CLAUDE.md (may be OMC or custom)
+    BACKUP="$HOME/.claude/CLAUDE.md.bak.$(date +%Y%m%d%H%M%S)"
+    cp "$CLAUDE_MD" "$BACKUP"
+    cp "$CLAUDE_TEAM_MD" "$CLAUDE_MD"
+    echo "[ok] Installed team-first CLAUDE.md (backup: $BACKUP)"
+  fi
+else
+  cp "$CLAUDE_TEAM_MD" "$CLAUDE_MD"
+  echo "[ok] Installed team-first CLAUDE.md"
+fi
+
 # --- Install skill via symlink ---
 
 if [[ -L "$SKILL_DIR" ]]; then
