@@ -290,10 +290,9 @@ SPAWN ALL 5 TEAMMATES:
 
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="architect",
-       prompt="You are the Architect. {preamble content or: You are responsible
-       for system architecture, component design, integration patterns, file
-       structure, and technology selection. You review all designs for
-       scalability, maintainability, and correctness.}
+       prompt="You are the Architect. Read your full role instructions from
+       ~/.claude/skills/prd-lifecycle/preambles/architect.md before doing
+       anything else.
        RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
        SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
        summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -301,10 +300,9 @@ SPAWN ALL 5 TEAMMATES:
 
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="data-engineer",
-       prompt="You are the Data Engineer. {preamble content or: You are
-       responsible for data modeling, database schema design, migrations, indexes,
-       constraints, data integrity, and query optimization. You have authority on
-       all data-related decisions.}
+       prompt="You are the Data Engineer. Read your full role instructions from
+       ~/.claude/skills/prd-lifecycle/preambles/data-engineer.md before doing
+       anything else.
        RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
        SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
        summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -312,10 +310,9 @@ SPAWN ALL 5 TEAMMATES:
 
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="qa-engineer",
-       prompt="You are the QA Engineer. {preamble content or: You are responsible
-       for test strategy, test case design, acceptance criteria validation,
-       edge case identification, and build verification. You ensure every story
-       has testable acceptance criteria.}
+       prompt="You are the QA Engineer. Read your full role instructions from
+       ~/.claude/skills/prd-lifecycle/preambles/qa-engineer.md before doing
+       anything else.
        RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
        SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
        summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -323,10 +320,9 @@ SPAWN ALL 5 TEAMMATES:
 
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="security-reviewer",
-       prompt="You are the Security Reviewer. {preamble content or: You are
-       responsible for security analysis, threat modeling, OWASP Top 10
-       compliance, input validation, authentication/authorization review, and
-       secrets management. You flag security risks early.}
+       prompt="You are the Security Reviewer. Read your full role instructions
+       from ~/.claude/skills/prd-lifecycle/preambles/security-reviewer.md
+       before doing anything else.
        RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
        SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
        summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -334,10 +330,9 @@ SPAWN ALL 5 TEAMMATES:
 
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="tech-writer",
-       prompt="You are the Tech Writer. {preamble content or: You are responsible
-       for functional specifications, API contract documentation, user flow
-       documentation, error scenario documentation, and ensuring requirements
-       are unambiguous and complete.}
+       prompt="You are the Tech Writer. Read your full role instructions from
+       ~/.claude/skills/prd-lifecycle/preambles/tech-writer.md before doing
+       anything else.
        RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
        SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
        summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -381,7 +376,9 @@ Spawn conditional specialists with their preamble from
   applied-ai-engineer:
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="applied-ai-engineer",
-       prompt="You are the Applied AI Engineer. {preamble content}
+       prompt="You are the Applied AI Engineer. Read your full role instructions
+       from ~/.claude/skills/prd-lifecycle/preambles/applied-ai-engineer.md
+       before doing anything else.
        RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
        SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
        summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -390,7 +387,9 @@ Spawn conditional specialists with their preamble from
   data-scientist:
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="data-scientist",
-       prompt="You are the Data Scientist. {preamble content}
+       prompt="You are the Data Scientist. Read your full role instructions
+       from ~/.claude/skills/prd-lifecycle/preambles/data-scientist.md
+       before doing anything else.
        RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
        SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
        summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -399,7 +398,9 @@ Spawn conditional specialists with their preamble from
   ux-ui-designer:
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="ux-ui-designer",
-       prompt="You are the UX/UI Product Designer. {preamble content}
+       prompt="You are the UX/UI Product Designer. Read your full role
+       instructions from ~/.claude/skills/prd-lifecycle/preambles/ux-ui-designer.md
+       before doing anything else.
        RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
        SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
        summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -764,7 +765,10 @@ A.1  SPAWN BUILD TEAMMATES
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="dev-1",
           prompt="You are Developer 1 in a pair programming team. You implement
-          features and review your partner's code. {prior learnings}
+          features and review your partner's code. Read your role instructions
+          from ~/.claude/skills/prd-lifecycle/preambles/dev.md and prior
+          learnings from prd-lifecycle/learnings.md (if it exists) before
+          starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -773,7 +777,10 @@ A.1  SPAWN BUILD TEAMMATES
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="dev-2",
           prompt="You are Developer 2 in a pair programming team. You implement
-          features and review your partner's code. {prior learnings}
+          features and review your partner's code. Read your role instructions
+          from ~/.claude/skills/prd-lifecycle/preambles/dev.md and prior
+          learnings from prd-lifecycle/learnings.md (if it exists) before
+          starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -784,7 +791,10 @@ A.1  SPAWN BUILD TEAMMATES
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="data-engineer",
           prompt="You are the Data Engineer. Implement the data layer: schemas,
-          migrations, seed data, and data access patterns. {prior learnings}
+          migrations, seed data, and data access patterns. Read your role
+          instructions from ~/.claude/skills/prd-lifecycle/preambles/data-engineer.md
+          and prior learnings from prd-lifecycle/learnings.md (if it exists)
+          before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -797,7 +807,10 @@ A.1  SPAWN BUILD TEAMMATES
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="applied-ai-engineer",
           prompt="You are the Applied AI Engineer. Implement the ML pipeline
-          components for this epic. {preamble content} {prior learnings}
+          components for this epic. Read your role instructions from
+          ~/.claude/skills/prd-lifecycle/preambles/applied-ai-engineer.md and
+          prior learnings from prd-lifecycle/learnings.md (if it exists)
+          before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -808,8 +821,10 @@ A.1  SPAWN BUILD TEAMMATES
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="ux-ui-designer",
           prompt="You are the UX/UI Product Designer. Implement the UI
-          components and ensure accessibility compliance. {preamble content}
-          {prior learnings}
+          components and ensure accessibility compliance. Read your role
+          instructions from ~/.claude/skills/prd-lifecycle/preambles/ux-ui-designer.md
+          and prior learnings from prd-lifecycle/learnings.md (if it exists)
+          before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -820,8 +835,10 @@ A.1  SPAWN BUILD TEAMMATES
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="data-scientist",
           prompt="You are the Data Scientist. Implement the analytics pipeline,
-          event tracking, and metrics infrastructure. {preamble content}
-          {prior learnings}
+          event tracking, and metrics infrastructure. Read your role instructions
+          from ~/.claude/skills/prd-lifecycle/preambles/data-scientist.md and
+          prior learnings from prd-lifecycle/learnings.md (if it exists)
+          before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -924,7 +941,10 @@ B.1  SPAWN REVIEW TEAMMATES
           team_name="prd-{slug}", name="qa-engineer",
           prompt="You are the QA Engineer. Run tests, write new tests for
           uncovered paths, verify build integrity, and run type checking.
-          {prior learnings}
+          Read your role instructions from
+          ~/.claude/skills/prd-lifecycle/preambles/qa-engineer.md and prior
+          learnings from prd-lifecycle/learnings.md (if it exists) before
+          starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -935,7 +955,10 @@ B.1  SPAWN REVIEW TEAMMATES
           prompt="You are the Security Reviewer. Check OWASP Top 10 compliance,
           scan for secrets/credentials in code, validate input sanitization,
           review auth flows, and assess dependency vulnerabilities.
-          {prior learnings}
+          Read your role instructions from
+          ~/.claude/skills/prd-lifecycle/preambles/security-reviewer.md and
+          prior learnings from prd-lifecycle/learnings.md (if it exists)
+          before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -945,7 +968,10 @@ B.1  SPAWN REVIEW TEAMMATES
           team_name="prd-{slug}", name="performance-reviewer",
           prompt="You are the Performance Reviewer. Identify O(n^2+) hotspots,
           N+1 query patterns, memory leaks, unnecessary re-renders, bundle size
-          issues, and missing caching opportunities. {prior learnings}
+          issues, and missing caching opportunities. Read your role instructions
+          from ~/.claude/skills/prd-lifecycle/preambles/performance-reviewer.md
+          and prior learnings from prd-lifecycle/learnings.md (if it exists)
+          before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -955,7 +981,11 @@ B.1  SPAWN REVIEW TEAMMATES
           team_name="prd-{slug}", name="code-reviewer",
           prompt="You are the Code Reviewer. Evaluate code quality, SOLID
           principles adherence, DRY compliance, naming conventions, error
-          handling patterns, and documentation completeness. {prior learnings}
+          handling patterns, and documentation completeness. Read your role
+          instructions from
+          ~/.claude/skills/prd-lifecycle/preambles/code-reviewer.md and prior
+          learnings from prd-lifecycle/learnings.md (if it exists) before
+          starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -966,7 +996,10 @@ B.1  SPAWN REVIEW TEAMMATES
           team_name="prd-{slug}", name="data-engineer",
           prompt="You are the Data Engineer reviewing the data layer. Verify
           schema correctness, migration safety (up and down), index coverage,
-          constraint enforcement, and data integrity. {prior learnings}
+          constraint enforcement, and data integrity. Read your role instructions
+          from ~/.claude/skills/prd-lifecycle/preambles/data-engineer.md and
+          prior learnings from prd-lifecycle/learnings.md (if it exists)
+          before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -983,7 +1016,10 @@ B.1  SPAWN REVIEW TEAMMATES
           team_name="prd-{slug}", name="applied-ai-engineer",
           prompt="You are the Applied AI Engineer reviewing the ML components.
           Verify model integration, inference performance, fallback behavior,
-          and responsible AI compliance. {preamble content} {prior learnings}
+          and responsible AI compliance. Read your role instructions from
+          ~/.claude/skills/prd-lifecycle/preambles/applied-ai-engineer.md and
+          prior learnings from prd-lifecycle/learnings.md (if it exists)
+          before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -995,7 +1031,10 @@ B.1  SPAWN REVIEW TEAMMATES
           team_name="prd-{slug}", name="data-scientist",
           prompt="You are the Data Scientist reviewing analytics components.
           Verify event tracking, metrics accuracy, statistical validity,
-          and data privacy compliance. {preamble content} {prior learnings}
+          and data privacy compliance. Read your role instructions from
+          ~/.claude/skills/prd-lifecycle/preambles/data-scientist.md and
+          prior learnings from prd-lifecycle/learnings.md (if it exists)
+          before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -1007,7 +1046,10 @@ B.1  SPAWN REVIEW TEAMMATES
           team_name="prd-{slug}", name="ux-ui-designer",
           prompt="You are the UX/UI Product Designer reviewing the interface.
           Verify design compliance, accessibility (WCAG 2.1 AA), responsive
-          behavior, and UI state coverage. {preamble content} {prior learnings}
+          behavior, and UI state coverage. Read your role instructions from
+          ~/.claude/skills/prd-lifecycle/preambles/ux-ui-designer.md and
+          prior learnings from prd-lifecycle/learnings.md (if it exists)
+          before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -1136,8 +1178,11 @@ C.1  SPAWN ARCHITECT (if not already present)
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="architect",
           prompt="You are the Architect performing a post-implementation review.
-          Verify the implementation matches the architecture documents.
-          {prior learnings}
+          Verify the implementation matches the architecture documents. Read
+          your role instructions from
+          ~/.claude/skills/prd-lifecycle/preambles/architect.md and prior
+          learnings from prd-lifecycle/learnings.md (if it exists) before
+          starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
