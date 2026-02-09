@@ -1125,7 +1125,7 @@ PHASE 3 GATES:
 - [ ] Release teammates shut down cleanly
 
 FINAL:
-- [ ] state.json shows phase: "completed"
+- [ ] brain orient output shows state: completed
 - [ ] learnings.md has final aggregation from all sprints
 - [ ] RETROSPECTIVE.md compiled from all sprint retros
 - [ ] TeamDelete executed successfully
@@ -1157,18 +1157,38 @@ CONFIGURATION:
 
 RESUME:
 
-  All lifecycle state is persisted in prd-lifecycle/state.json. The state tracks:
-  - phase: "specification" | "execution" | "release" | "completed"
-  - step: fine-grained position within the current phase (see table below)
-  - status: "active" | "paused" | "completed"
-  - current_sprint: number (which sprint we're on or about to start)
-  - current_epic: the epic ID being implemented in the current sprint (empty if between sprints)
-  - team_name: the team name used for TeamCreate (e.g., "prd-task-api")
-  - epics_completed: array of epic IDs that have passed all gates
-  - epics_remaining: array of epic IDs still to be executed
-  - has_ai_ml, has_analytics, has_frontend_ui: domain flags for specialists
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  CRITICAL: NEVER write state.json directly.                     ║
+  ║  ALWAYS use brain/run.sh for ALL state transitions.             ║
+  ║  Direct writes corrupt the XState snapshot format.              ║
+  ╚══════════════════════════════════════════════════════════════════╝
 
-  Step values and their meaning:
+  All lifecycle state is persisted in prd-lifecycle/state.json as an XState v5
+  snapshot. The file is managed EXCLUSIVELY by the brain engine. The format is:
+
+  {
+    "value": { "execution": { "sprint": "build" } },   ← nested state path
+    "context": {
+      "team_name": "prd-task-api",
+      "current_sprint": 2,
+      "current_epic": "E3",
+      "epics_completed": ["E1", "E2"],
+      "epics_remaining": ["E3", "E4"],
+      "has_ai_ml": false,
+      "has_analytics": false,
+      "has_frontend_ui": true,
+      "created_at": "2026-02-09T10:00:00Z"
+    },
+    "status": "active",
+    "historyValue": {},
+    "children": {}
+  }
+
+  DO NOT read individual fields from state.json to determine position.
+  Instead, run brain with no arguments — it reads state.json and outputs
+  a navigation box telling you exactly where you are and what to do next.
+
+  Step values and their meaning (for reference only — brain tells you this):
 
   | step | phase | What's done | Resume from |
   |------|-------|-------------|-------------|
@@ -1197,10 +1217,10 @@ RESUME:
 
   To resume an interrupted lifecycle:
   1. The RESUME CHECK at the top of Step 0 handles this automatically
-  2. It reads state.json, extracts phase + step + team_name
-  3. Re-creates the team: TeamCreate(team_name="{team_name}")
+  2. Run brain with no arguments — it reads state.json and outputs navigation
+  3. Re-creates the team: TeamCreate(team_name="{team_name from brain output}")
   4. Discovers lead name (step 0.3b)
-  5. Jumps to the appropriate step based on the `step` value
+  5. Follow the PROTOCOL in the brain output (LOAD + RESUME AT)
   6. Re-spawns only the teammates needed for the current sub-phase
 
   All artifacts from completed phases are preserved in prd-lifecycle/ and do
@@ -1279,11 +1299,12 @@ TROUBLESHOOTING:
   - Never have more than 5 active teammates simultaneously
 
   State file corruption:
-  - Read the raw state.json to assess damage
-  - If parseable: fix the corrupted field manually via brain (e.g., brain/run.sh . step=sprint_build)
-  - If unparseable: reconstruct from artifacts (check which sprint dirs exist,
+  - NEVER write state.json directly — it is an XState snapshot managed by brain
+  - If parseable: fix via brain transition (e.g., brain/run.sh step=sprint_build)
+  - If unparseable: delete state.json and re-initialize with brain --init,
+    then advance to the correct state using brain transitions
+  - Reconstruct position from artifacts (check which sprint dirs exist,
     which epic docs exist, which reports are written)
-  - Write a fresh state.json reflecting the reconstructed state
 
   Memory/context pressure in long lifecycles:
   - ACE playbook injection is now a ranked digest (~8KB per prompt vs previous
