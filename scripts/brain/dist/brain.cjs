@@ -3722,6 +3722,39 @@ var STATE_FILE = "state.json";
 function stateFilePath(projectRoot) {
   return nodePath.join(projectRoot, STATE_DIR, STATE_FILE);
 }
+function isLegacyFormat(data) {
+  return data != null && typeof data.phase === "string" && typeof data.step === "string" && data.value === void 0;
+}
+function migrateLegacyState(legacy) {
+  const { phase, step } = legacy;
+  let value;
+  if (phase === "completed") {
+    value = "completed";
+  } else if (phase === "execution" && step.startsWith("sprint_")) {
+    const sprintStep = step.slice("sprint_".length);
+    value = { execution: { sprint: sprintStep } };
+  } else {
+    value = { [phase]: step };
+  }
+  const context = {
+    team_name: legacy.team_name ?? "",
+    current_sprint: legacy.current_sprint ?? 0,
+    current_epic: legacy.current_epic ?? "",
+    epics_completed: legacy.epics_completed ?? [],
+    epics_remaining: legacy.epics_remaining ?? [],
+    has_ai_ml: legacy.has_ai_ml ?? false,
+    has_analytics: legacy.has_analytics ?? false,
+    has_frontend_ui: legacy.has_frontend_ui ?? false,
+    created_at: legacy.created_at ?? ""
+  };
+  return {
+    value,
+    context,
+    status: legacy.status ?? "active",
+    historyValue: {},
+    children: {}
+  };
+}
 function readState(projectRoot) {
   const filePath = stateFilePath(projectRoot);
   if (!fs.existsSync(filePath)) return null;
@@ -3729,7 +3762,13 @@ function readState(projectRoot) {
   if (raw.trim() === "") {
     throw new Error(`state.json is empty (0 bytes) at ${filePath}`);
   }
-  return JSON.parse(raw);
+  const data = JSON.parse(raw);
+  if (isLegacyFormat(data)) {
+    const migrated = migrateLegacyState(data);
+    writeState(projectRoot, migrated);
+    return migrated;
+  }
+  return data;
 }
 function writeState(projectRoot, snapshot) {
   const filePath = stateFilePath(projectRoot);

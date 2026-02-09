@@ -1,7 +1,7 @@
 import * as nodePath from 'path';
 import { parseArgs } from './cli.js';
 import { processEvent } from './engine.js';
-import { readState, writeState, initializeProject } from './persistence.js';
+import { readState, writeState, initializeProject, isLegacyFormat } from './persistence.js';
 import { computeNavigation } from './navigation.js';
 import { renderNavigationBox, renderNoStateBox, renderErrorBox } from './output.js';
 import { createLogger } from './logger.js';
@@ -55,6 +55,10 @@ function main(): void {
     console.log(renderNoStateBox());
     process.exit(0);
   }
+
+  // Note: legacy format migration is handled automatically by readState().
+  // If the file was in the old brain.sh flat format, readState() converted
+  // it to XState snapshot format and persisted the migrated version.
 
   // --- VALIDATE STATE PATH ---
   const statePath = stateValueToPath(snapshot.value);
