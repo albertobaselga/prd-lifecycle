@@ -688,10 +688,31 @@ T.5  SHUTDOWN ALL SPRINT TEAMMATES
      Wait for confirmations (responses arrive as new conversation turns).
      Track which teammates have confirmed shutdown.
 
-T.6  ADVANCE TO NEXT EPIC
+T.6  GIT COMMIT SPRINT WORK
+
+     After all teammates are shut down, commit ALL changes from this sprint.
+     This creates an atomic rollback point for the sprint's work.
+
+     Run:
+     git add -A && git commit -m "feat(sprint-{n}): implement epic E{id} — {epic title}"
+
+     Where:
+     - {n} is the current sprint number
+     - {id} is the epic ID (e.g., E1, E2)
+     - {epic title} is the epic's title from epics.json
+
+     NOTE: Use git add -A to capture all changes (code, reports, retro, state).
+     If the commit fails (e.g., no changes), log and continue — do not block.
+
+T.7  ADVANCE TO NEXT EPIC (DO NOT STOP)
 
      Read epics.json to determine the next epic in execution_order.
      The brain output from T.4 handles routing:
      - If epics remain: LOAD shows phase2-sprints.md, RESUME AT shows SPRINT SETUP (S.1)
      - If all epics complete: RESUME AT shows PHASE 3: RELEASE in SKILL.md
      Follow the PROTOCOL in the brain output.
+
+     CRITICAL: Do NOT pause here to ask the user if they want to continue.
+     Do NOT present sprint results and wait. The lifecycle is a continuous
+     process — immediately proceed to the next sprint or to Phase 3.
+     The user will see the final report at F.5 when everything is done.

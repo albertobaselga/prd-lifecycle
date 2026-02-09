@@ -106,6 +106,23 @@ HARD RULES — violations of these rules are not permitted:
 
 10. CLEAN SHUTDOWN. Every teammate must be shut down via SendMessage
     (type: "shutdown_request") when their work is complete. No orphaned agents.
+
+11. GIT COMMIT AFTER EVERY SPRINT. After each sprint's retro is complete and
+    teammates are shut down, commit all changes with a descriptive message:
+    "feat(sprint-{n}): implement epic E{id} — {epic title}". This creates
+    atomic rollback points per sprint. The commit step is in phase2-sprints.md.
+
+12. NEVER STOP UNTIL LIFECYCLE COMPLETE. The Lead MUST continue executing
+    sprints until ALL epics are completed and the lifecycle reaches the
+    "completed" state. Do NOT pause between sprints to ask the user for
+    permission to continue. Do NOT stop after a single sprint. Do NOT
+    present intermediate results and wait. The user initiated a FULL
+    lifecycle — execute it fully. The ONLY acceptable stop conditions are:
+    a) All epics complete and final retrospective presented (F.5)
+    b) An escalation condition from section <Escalation_And_Stop_Conditions>
+    c) A tool permission denial that cannot be worked around
+    If context is running low between sprints, summarize progress and
+    continue — do NOT stop and ask the user to resume.
 </Execution_Policy>
 
 <Steps>
@@ -731,6 +748,11 @@ each validated by all 5 specialists.
      Wait for all shutdown confirmations (responses arrive as new conversation
      turns). Track which teammates have confirmed shutdown.
 
+3.6b GIT COMMIT PHASE 1 WORK
+
+     Commit all Phase 1 artifacts (architecture, data models, specs, epics):
+     git add -A && git commit -m "feat(phase1): complete specification — architecture, data models, and specs for all epics"
+
 3.7  TRANSITION TO PHASE 2
 
      TRANSITION:
@@ -838,6 +860,11 @@ R.7  SHUTDOWN RELEASE TEAMMATES
      Wait for confirmations (responses arrive as new conversation turns).
      Track which teammates have confirmed shutdown.
 
+R.7b GIT COMMIT RELEASE WORK
+
+     Commit all release artifacts:
+     git add -A && git commit -m "feat(release): complete release — docs, changelog, and deployment config"
+
      TRANSITION:
      bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh step=release_done
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
@@ -932,7 +959,7 @@ TEAMMATE COMMUNICATION:
 FILE OPERATIONS:
 - Read — load PRD files, preambles, architecture docs, reports
 - Write — create prd.json, epics.json, architecture docs, reports, release docs
-- Edit — update existing files (state, reports, specs)
+- Edit — update existing files (reports, specs, docs — NEVER state.json)
 
 SHELL SCRIPTS:
 - Bash: bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . --init — scaffold
