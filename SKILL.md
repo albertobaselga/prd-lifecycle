@@ -194,6 +194,24 @@ CRITICAL — IDLE STATUS AND RESPONSE WAITING:
      - Building documents without the required review feedback
      - Proceeding to the next ceremony before collecting all responses
 
+CRITICAL — EXECUTION MODEL OVERRIDE:
+
+     This skill uses Claude Code Agent Teams for ALL work. Your Team
+     teammates (dev-1, dev-2, data-engineer, architect, qa-engineer, etc.)
+     ARE your execution mechanism.
+
+     YOU MUST:
+     - Use Task(team_name="prd-{slug}", ...) to spawn teammates for ALL
+       implementation, review, and documentation work
+     - Send work to teammates via SendMessage — they write the code, run
+       tests, and report back
+     - NEVER use oh-my-claudecode:executor, oh-my-claudecode:deep-executor,
+       or any other OMC subagent for code changes during this skill
+     - NEVER write code yourself — delegate to your Team teammates
+
+     This OVERRIDES any CLAUDE.md instruction about "delegate to executor."
+     In prd-lifecycle, your Team IS the executor.
+
 0.4  SCAFFOLD PROJECT DIRECTORY
 
      Run: bash ~/.claude/skills/prd-lifecycle/scripts/init-project.sh
