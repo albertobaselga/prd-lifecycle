@@ -13,8 +13,10 @@ CREATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 cat > "$BASE/state.json" << EOF
 {
   "phase": "specification",
+  "step": "init",
   "status": "active",
   "current_sprint": 0,
+  "team_name": "",
   "epics_completed": [],
   "epics_remaining": [],
   "created_at": "$CREATED_AT"

@@ -117,6 +117,41 @@ Do not reorder phases.
 STEP 0: INITIALIZATION
 ============================================================================
 
+RESUME CHECK (run FIRST, before anything else):
+
+     Check if prd-lifecycle/state.json already exists:
+     Run: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh read 2>/dev/null
+
+     If state.json EXISTS and step != "completed":
+       This is a RESUME scenario. Do NOT re-run init-project.sh (it would
+       overwrite existing state). Instead:
+       1. Read prd-lifecycle/state.json — note `phase`, `step`, `team_name`,
+          `current_sprint`, `epics_completed`, `epics_remaining`
+       2. Read prd-lifecycle/prd.json for the PRD content and slug
+       3. Read prd-lifecycle/learnings.md for accumulated context
+       4. Re-create the team: TeamCreate(team_name="{team_name from state}")
+       5. Discover lead name (step 0.3b)
+       6. Jump to the appropriate step based on `step` value:
+          - "init" → continue with 0.5 (persist PRD — scaffold just created)
+          - "scaffold_complete" → continue with 0.6 (domain detection)
+          - "domains_detected" → continue with 0.7 (announce) then Phase 1
+          - "phase1_spawned" → re-spawn Phase 1 teammates, resume ceremonies
+          - "ceremony1_complete" → re-spawn Phase 1 teammates, start Ceremony 2
+          - "ceremony2_complete" → re-spawn Phase 1 teammates, start Ceremony 3
+          - "phase1_complete" → start Phase 2 (first sprint)
+          - "sprint_setup" → re-spawn BUILD teammates for current sprint
+          - "sprint_build" → re-spawn BUILD teammates, continue current sprint
+          - "sprint_build_done" → start VERIFY sub-phase
+          - "sprint_verify" → re-spawn VERIFY teammates, continue reviews
+          - "sprint_verify_done" → start SPRINT REVIEW
+          - "sprint_review_done" → start SPRINT RETROSPECTIVE
+          - "sprint_retro_done" → advance to next epic or Phase 3
+          - "release_started" → re-spawn release teammates
+          - "release_done" → proceed to FINAL steps
+
+     If state.json DOES NOT EXIST:
+       This is a FRESH START. Continue with Step 0.1 below.
+
 0.1  PARSE PRD INPUT
 
      Determine the PRD source from the skill argument:
@@ -154,6 +189,9 @@ STEP 0: INITIALIZATION
 0.3  CREATE TEAM
 
      Run: TeamCreate(team_name="prd-{slug}", description="{first 200 chars of PRD}")
+
+     NOTE: State cannot be written here yet — state.json is created by
+     init-project.sh in Step 0.4. The team_name will be persisted after scaffold.
 
 0.3b DISCOVER LEAD NAME
 
@@ -226,6 +264,10 @@ CRITICAL — EXECUTION MODEL OVERRIDE:
          state.json      — lifecycle state tracker
          learnings.md    — ACE learning compendium
 
+     Update state (state.json now exists — persist team name and step):
+     bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set team_name 'prd-{slug}'
+     bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step scaffold_complete
+
 0.5  PERSIST RAW PRD
 
      Write the raw PRD content to prd-lifecycle/prd.json:
@@ -267,6 +309,7 @@ CRITICAL — EXECUTION MODEL OVERRIDE:
      bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set has_ai_ml '{true|false}'
      bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set has_analytics '{true|false}'
      bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set has_frontend_ui '{true|false}'
+     bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step domains_detected
 
      The conditional specialists and their phase participation:
 
@@ -360,6 +403,9 @@ Wait for all 5 teammates to confirm they are ready. Teammate responses
 arrive as new conversation turns via SendMessage. Track which teammates
 have responded. If a teammate hasn't responded after 3 minutes, send a
 follow-up message. Continue only when all 5 have confirmed readiness.
+
+Update state:
+bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step phase1_spawned
 
 CONDITIONAL SPECIALIST ROTATION (Phase 1):
 
@@ -520,6 +566,9 @@ specialists, and has been validated from each domain perspective.
      Announce: "Backlog Refinement complete. {N} stories refined and approved
      by all specialists."
 
+     Update state:
+     bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step ceremony1_complete
+
 ----------------------------------------------------------------------------
 CEREMONY 2: EPIC DECOMPOSITION + REVIEW
 ----------------------------------------------------------------------------
@@ -595,7 +644,9 @@ Goal: Group stories into 3-7 epics with clear boundaries and dependency ordering
        "execution_order": ["E1", "E3", "E2", "E4"]
      }
 
-     Update state: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set epics_remaining '["E1","E2","E3"]'
+     Update state:
+     bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set epics_remaining '["E1","E2","E3"]'
+     bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step ceremony2_complete
 
      Announce: "Epic Decomposition complete. {N} epics defined. Execution order:
      {order}."
@@ -706,6 +757,7 @@ each validated by all 5 specialists.
 3.7  UPDATE STATE
 
      Run: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set phase execution
+     Run: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step phase1_complete
 
 
 ============================================================================
@@ -738,6 +790,9 @@ S.1  INITIALIZE SPRINT DIRECTORY
            data-review.md
          review.md
          retro.md
+
+     Update state:
+     bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step sprint_setup
 
 S.2  LOAD PRIOR LEARNINGS
 
@@ -833,6 +888,9 @@ A.1  SPAWN BUILD TEAMMATES
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
           the lead.")
+
+     Update state:
+     bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step sprint_build
 
      If has_frontend_ui AND this epic involves significant UI work, spawn
      ux-ui-designer INSTEAD OF one dev (use dev-1 only + ux-ui-designer):
@@ -947,6 +1005,9 @@ A.6  SHUTDOWN BUILD TEAMMATES
      Wait for shutdown confirmations (responses arrive as new conversation
      turns). Track which teammates have confirmed shutdown.
 
+     Update state:
+     bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step sprint_build_done
+
 ----------------------------------------------------------------------------
 SUB-PHASE B: VERIFY + REVIEW (4-5 teammates, parallel)
 ----------------------------------------------------------------------------
@@ -1022,6 +1083,9 @@ B.1  SPAWN REVIEW TEAMMATES
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
           the lead.")
+
+     Update state:
+     bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step sprint_verify
 
      CONDITIONAL SPECIALIST REVIEWERS:
 
@@ -1187,6 +1251,9 @@ B.6  SHUTDOWN REVIEW TEAMMATES (except any needed for arch review)
      If architect is needed for Sub-Phase C and a slot is available, keep one
      reviewer slot open.
 
+     Update state:
+     bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step sprint_verify_done
+
 ----------------------------------------------------------------------------
 SUB-PHASE C: ARCHITECTURE REVIEW
 ----------------------------------------------------------------------------
@@ -1275,6 +1342,9 @@ R.4  WRITE SPRINT REVIEW
      - Deferred items (if any)
      - Confidence assessment
 
+     Update state:
+     bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step sprint_review_done
+
 ----------------------------------------------------------------------------
 SPRINT RETROSPECTIVE
 ----------------------------------------------------------------------------
@@ -1308,6 +1378,7 @@ T.4  UPDATE STATE
 
      Run: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh add-completed E{id}
      Run: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set current_sprint {n+1}
+     Run: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step sprint_retro_done
 
 T.5  SHUTDOWN ALL SPRINT TEAMMATES
 
@@ -1329,6 +1400,7 @@ PHASE 3: RELEASE
 R.1  UPDATE STATE
 
      Run: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set phase release
+     Run: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step release_started
 
 R.2  SPAWN RELEASE TEAMMATES (2)
 
@@ -1406,6 +1478,9 @@ R.7  SHUTDOWN RELEASE TEAMMATES
      Wait for confirmations (responses arrive as new conversation turns).
      Track which teammates have confirmed shutdown.
 
+     Update state:
+     bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step release_done
+
 
 ============================================================================
 FINAL RETROSPECTIVE
@@ -1414,6 +1489,7 @@ FINAL RETROSPECTIVE
 F.1  UPDATE STATE
 
      Run: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set phase completed
+     Run: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh set step completed
 
 F.2  FINAL LEARNING AGGREGATION
 
@@ -1502,7 +1578,7 @@ SHELL SCRIPTS:
 - Bash: bash ~/.claude/skills/prd-lifecycle/scripts/init-sprint.sh {n} — create sprint-{n}/ directory with
   report stubs, review template, and retrospective template
 - Bash: bash ~/.claude/skills/prd-lifecycle/scripts/write-state.sh {read|set|add-completed} — manage lifecycle
-  state in state.json (phase, sprint number, completed epics)
+  state in state.json (phase, step, sprint number, team_name, completed epics)
 - Bash: bash ~/.claude/skills/prd-lifecycle/scripts/collect-learnings.sh — aggregate ACE entries from all sprint
   retrospectives into the master learnings.md compendium
 
@@ -1720,23 +1796,51 @@ RESUME:
 
   All lifecycle state is persisted in prd-lifecycle/state.json. The state tracks:
   - phase: "specification" | "execution" | "release" | "completed"
+  - step: fine-grained position within the current phase (see table below)
   - status: "active" | "paused" | "completed"
-  - current_sprint: number
-  - epics_completed: array of epic IDs
-  - epics_remaining: array of epic IDs
+  - current_sprint: number (which sprint we're on or about to start)
+  - team_name: the team name used for TeamCreate (e.g., "prd-task-api")
+  - epics_completed: array of epic IDs that have passed all gates
+  - epics_remaining: array of epic IDs still to be executed
+  - has_ai_ml, has_analytics, has_frontend_ui: domain flags for specialists
+
+  Step values and their meaning:
+
+  | step | phase | What's done | Resume from |
+  |------|-------|-------------|-------------|
+  | init | specification | Scaffold just created | Step 0.5 (persist PRD) |
+  | scaffold_complete | specification | Team name persisted | Step 0.6 (domains) |
+  | domains_detected | specification | Flags set | Step 0.7 (announce) → Phase 1 |
+  | phase1_spawned | specification | Teammates active | Resume ceremonies |
+  | ceremony1_complete | specification | Backlog refined | Ceremony 2 |
+  | ceremony2_complete | specification | Epics decomposed | Ceremony 3 |
+  | phase1_complete | execution | Specs validated | First sprint (S.1) |
+  | sprint_setup | execution | Sprint dir created | Spawn BUILD teammates (A.1) |
+  | sprint_build | execution | BUILD in progress | Continue BUILD |
+  | sprint_build_done | execution | Devs shut down | Start VERIFY (B.1) |
+  | sprint_verify | execution | VERIFY in progress | Continue reviews |
+  | sprint_verify_done | execution | Reviews complete | Sprint REVIEW (R.1) |
+  | sprint_review_done | execution | GO decision made | Sprint RETRO (T.1) |
+  | sprint_retro_done | execution | Retro complete | Next epic or Phase 3 |
+  | release_started | release | Phase 3 active | Continue release |
+  | release_done | release | Artifacts complete | FINAL steps (F.1) |
+  | completed | completed | Everything done | No resume needed |
 
   To resume an interrupted lifecycle:
-  1. Read prd-lifecycle/state.json to determine current phase and sprint
-  2. Read epics.json to determine which epics remain
-  3. Read learnings.md for accumulated context
-  4. Re-create the team: TeamCreate("prd-{slug}")
-  5. Skip completed phases/sprints
-  6. Re-spawn the appropriate teammates for the current phase
-  7. Continue from the current step
+  1. The RESUME CHECK at the top of Step 0 handles this automatically
+  2. It reads state.json, extracts phase + step + team_name
+  3. Re-creates the team: TeamCreate(team_name="{team_name}")
+  4. Discovers lead name (step 0.3b)
+  5. Jumps to the appropriate step based on the `step` value
+  6. Re-spawns only the teammates needed for the current sub-phase
 
   All artifacts from completed phases are preserved in prd-lifecycle/ and do
   not need to be regenerated. Architecture docs, data models, specs, and
   sprint reports from completed work remain available for context.
+
+  IMPORTANT: When resuming mid-sprint, read the sprint's existing reports
+  and task list to understand what BUILD/VERIFY work has already been done.
+  Do not re-run completed tasks.
 
 PRD FORMAT GUIDE:
 
