@@ -1,0 +1,379 @@
+{
+  "$schema": "https://stately.ai/schema/xstate-v5.json",
+  "id": "prdLifecycle",
+  "version": "1.0.0",
+  "initial": "specification",
+  "meta": {
+    "scaffold": ["arch", "specs", "data", "sprints", "release"],
+    "invariant": "compass-not-autopilot: every state is a stable checkpoint. NO always transitions, NO onDone auto-transitions. The Lead must explicitly send events to advance."
+  },
+  "context": {
+    "team_name": "",
+    "current_sprint": 0,
+    "current_epic": "",
+    "epics_completed": [],
+    "epics_remaining": [],
+    "has_ai_ml": false,
+    "has_analytics": false,
+    "has_frontend_ui": false,
+    "created_at": ""
+  },
+  "states": {
+    "specification": {
+      "initial": "init",
+      "states": {
+        "init": {
+          "on": {
+            "SCAFFOLD_COMPLETE": {
+              "target": "scaffold_complete",
+              "actions": ["assignTeamName", "assignCreatedAt"]
+            }
+          },
+          "meta": {
+            "nav": {
+              "resumeAt": "STEP 0: INITIALIZATION — continue from step after init",
+              "roles": "(none yet — still initializing)",
+              "meaning": "Project scaffold just created",
+              "previous": "(start)"
+            }
+          }
+        },
+        "scaffold_complete": {
+          "on": {
+            "DOMAINS_DETECTED": {
+              "target": "domains_detected",
+              "actions": ["assignDomainFlags"]
+            }
+          },
+          "meta": {
+            "nav": {
+              "resumeAt": "STEP 0: INITIALIZATION — continue from step after scaffold_complete",
+              "roles": "(none yet — still initializing)",
+              "meaning": "Team name and base state persisted",
+              "previous": "init"
+            }
+          }
+        },
+        "domains_detected": {
+          "on": {
+            "PHASE1_SPAWNED": {
+              "target": "phase1_spawned",
+              "actions": []
+            }
+          },
+          "meta": {
+            "nav": {
+              "resumeAt": "STEP 0: INITIALIZATION — continue from step after domains_detected",
+              "roles": "(none yet — still initializing)",
+              "meaning": "Domain flags set (AI/ML, analytics, frontend)",
+              "previous": "scaffold_complete"
+            }
+          }
+        },
+        "phase1_spawned": {
+          "on": {
+            "CEREMONY1_COMPLETE": {
+              "target": "ceremony1_complete",
+              "actions": []
+            }
+          },
+          "meta": {
+            "nav": {
+              "resumeAt": "PHASE 1 — resume ceremonies (check which ceremony is next)",
+              "roles": "architect, data-engineer, qa-engineer, security-reviewer, tech-writer",
+              "conditionalRoles": {
+                "has_ai_ml": "applied-ai-engineer",
+                "has_analytics": "data-scientist",
+                "has_frontend_ui": "ux-ui-designer"
+              },
+              "meaning": "Phase 1 specialists spawned and active",
+              "previous": "domains_detected"
+            }
+          }
+        },
+        "ceremony1_complete": {
+          "on": {
+            "CEREMONY2_COMPLETE": {
+              "target": "ceremony2_complete",
+              "actions": ["assignEpicsRemaining"]
+            }
+          },
+          "meta": {
+            "nav": {
+              "resumeAt": "PHASE 1 — CEREMONY 2: Epic Decomposition",
+              "roles": "(Phase 1 specialists should still be active)",
+              "meaning": "Backlog refinement done — stories have acceptance criteria",
+              "previous": "phase1_spawned"
+            }
+          }
+        },
+        "ceremony2_complete": {
+          "on": {
+            "PHASE1_COMPLETE": {
+              "target": "#prdLifecycle.execution",
+              "actions": []
+            }
+          },
+          "meta": {
+            "nav": {
+              "resumeAt": "PHASE 1 — CEREMONY 3: Spec Validation",
+              "roles": "(Phase 1 specialists should still be active)",
+              "meaning": "Epic decomposition done — epics defined with execution order",
+              "previous": "ceremony1_complete"
+            }
+          }
+        }
+      }
+    },
+
+    "execution": {
+      "initial": "phase1_complete",
+      "states": {
+        "phase1_complete": {
+          "on": {
+            "START_SPRINT": {
+              "target": "sprint",
+              "actions": ["assignCurrentEpic", "incrementSprint"]
+            }
+          },
+          "meta": {
+            "nav": {
+              "loadFile": "phases/phase2-sprints.md",
+              "resumeAt": "SPRINT SETUP (S.1) — first sprint",
+              "roles": "dev-1, dev-2 (spawned at BUILD)",
+              "meaning": "All specs validated — Phase 1 specialists shut down",
+              "previous": "ceremony2_complete"
+            }
+          }
+        },
+        "sprint": {
+          "initial": "setup",
+          "states": {
+            "setup": {
+              "on": {
+                "BUILD_STARTED": {
+                  "target": "build",
+                  "actions": []
+                }
+              },
+              "meta": {
+                "nav": {
+                  "loadFile": "phases/phase2-sprints.md",
+                  "resumeAt": "SUB-PHASE A: BUILD — spawn dev teammates (A.1)",
+                  "roles": "dev-1, dev-2",
+                  "conditionalRoles": {
+                    "has_ai_ml": "applied-ai-engineer (if AI epic)",
+                    "has_frontend_ui": "ux-ui-designer (if UI epic)",
+                    "has_analytics": "data-scientist (if analytics epic)"
+                  },
+                  "meaning": "Sprint directory created, epic assigned to sprint",
+                  "previous": "phase1_complete or sprint_retro_done"
+                }
+              }
+            },
+            "build": {
+              "on": {
+                "BUILD_DONE": {
+                  "target": "build_done",
+                  "actions": []
+                }
+              },
+              "meta": {
+                "nav": {
+                  "loadFile": "phases/phase2-sprints.md",
+                  "resumeAt": "SUB-PHASE A: BUILD — continue (teammates should be working)",
+                  "roles": "dev-1, dev-2 (should be active)",
+                  "meaning": "BUILD teammates spawned and working",
+                  "previous": "sprint_setup"
+                }
+              }
+            },
+            "build_done": {
+              "on": {
+                "VERIFY_STARTED": {
+                  "target": "verify",
+                  "actions": []
+                }
+              },
+              "meta": {
+                "nav": {
+                  "loadFile": "phases/phase2-sprints.md",
+                  "resumeAt": "SUB-PHASE B: VERIFY + REVIEW — spawn reviewers (B.1)",
+                  "roles": "qa-engineer, security-reviewer, performance-reviewer, code-reviewer",
+                  "extraRoles": "data-engineer (if data-heavy)",
+                  "conditionalRoles": {
+                    "has_ai_ml": "applied-ai-engineer",
+                    "has_analytics": "data-scientist",
+                    "has_frontend_ui": "ux-ui-designer"
+                  },
+                  "meaning": "BUILD complete — dev teammates shut down, code committed",
+                  "previous": "sprint_build"
+                }
+              }
+            },
+            "verify": {
+              "on": {
+                "VERIFY_DONE": {
+                  "target": "verify_done",
+                  "actions": []
+                }
+              },
+              "meta": {
+                "nav": {
+                  "loadFile": "phases/phase2-sprints.md",
+                  "resumeAt": "SUB-PHASE B: VERIFY — continue (reviewers should be working)",
+                  "roles": "qa-engineer, security-reviewer, performance-reviewer, code-reviewer (should be active)",
+                  "meaning": "VERIFY reviewers spawned and reviewing",
+                  "previous": "sprint_build_done"
+                }
+              }
+            },
+            "verify_done": {
+              "on": {
+                "ARCH_REVIEW_STARTED": {
+                  "target": "arch_review",
+                  "actions": []
+                }
+              },
+              "meta": {
+                "nav": {
+                  "loadFile": "phases/phase2-sprints.md",
+                  "resumeAt": "SUB-PHASE C: ARCHITECTURE REVIEW — spawn architect (C.1)",
+                  "roles": "architect",
+                  "meaning": "All reviews complete — reviewer teammates shut down",
+                  "previous": "sprint_verify"
+                }
+              }
+            },
+            "arch_review": {
+              "on": {
+                "ARCH_DONE": {
+                  "target": "arch_done",
+                  "actions": []
+                }
+              },
+              "meta": {
+                "nav": {
+                  "loadFile": "phases/phase2-sprints.md",
+                  "resumeAt": "SUB-PHASE C: ARCHITECTURE REVIEW — continue (C.2-C.4)",
+                  "roles": "architect (should be active)",
+                  "meaning": "Architecture review in progress",
+                  "previous": "sprint_verify_done"
+                }
+              }
+            },
+            "arch_done": {
+              "on": {
+                "REVIEW_DONE": {
+                  "target": "review_done",
+                  "actions": []
+                }
+              },
+              "meta": {
+                "nav": {
+                  "loadFile": "phases/phase2-sprints.md",
+                  "resumeAt": "SPRINT REVIEW — lead writes GO/NO-GO (R.1)",
+                  "roles": "(lead only — no teammates needed)",
+                  "meaning": "Architecture review passed or fixes applied",
+                  "previous": "sprint_arch_review"
+                }
+              }
+            },
+            "review_done": {
+              "on": {
+                "RETRO_DONE": {
+                  "target": "retro_done",
+                  "actions": ["completeEpic", "clearCurrentEpic"]
+                }
+              },
+              "meta": {
+                "nav": {
+                  "loadFile": "phases/phase2-sprints.md",
+                  "resumeAt": "SPRINT RETROSPECTIVE — collect retro input (T.1)",
+                  "roles": "(message remaining active teammates)",
+                  "meaning": "GO/NO-GO decision made by lead",
+                  "previous": "sprint_arch_done"
+                }
+              }
+            },
+            "retro_done": {
+              "on": {
+                "START_SPRINT": {
+                  "guard": "hasRemainingEpics",
+                  "target": "setup",
+                  "actions": ["assignCurrentEpic", "incrementSprint"],
+                  "reenter": true
+                },
+                "START_RELEASE": {
+                  "guard": "noRemainingEpics",
+                  "target": "#prdLifecycle.release"
+                }
+              },
+              "meta": {
+                "nav": {
+                  "resumeAt": "(dynamic — depends on remaining epics)",
+                  "resumeAtIfEpics": "SPRINT SETUP (S.1) — next sprint for next epic",
+                  "resumeAtIfNoEpics": "PHASE 3: RELEASE — in SKILL.md (re-read if needed)",
+                  "loadFileIfEpics": "phases/phase2-sprints.md",
+                  "roles": "(all shut down — next phase spawns fresh)",
+                  "meaning": "Retrospective compiled, ACE learnings aggregated",
+                  "previous": "sprint_review_done"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "release": {
+      "initial": "release_started",
+      "states": {
+        "release_started": {
+          "on": {
+            "RELEASE_DONE": {
+              "target": "release_done",
+              "actions": []
+            }
+          },
+          "meta": {
+            "nav": {
+              "resumeAt": "PHASE 3: RELEASE — continue from release_started in SKILL.md",
+              "roles": "release-engineer, tech-writer",
+              "meaning": "Phase 3 entered — release teammates being spawned",
+              "previous": "sprint_retro_done"
+            }
+          }
+        },
+        "release_done": {
+          "on": {
+            "LIFECYCLE_COMPLETE": {
+              "target": "#prdLifecycle.completed",
+              "actions": []
+            }
+          },
+          "meta": {
+            "nav": {
+              "resumeAt": "PHASE 3: RELEASE — continue from release_done in SKILL.md",
+              "roles": "(none — release artifacts complete)",
+              "meaning": "All release artifacts created",
+              "previous": "release_started"
+            }
+          }
+        }
+      }
+    },
+
+    "completed": {
+      "type": "final",
+      "meta": {
+        "nav": {
+          "resumeAt": "DONE — present final report to user",
+          "roles": "(none)",
+          "meaning": "Lifecycle fully complete",
+          "previous": "release_done"
+        }
+      }
+    }
+  }
+}
