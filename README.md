@@ -2,7 +2,7 @@
 
 A [Claude Code](https://claude.ai/download) skill that takes a PRD and orchestrates the **full development lifecycle** using native Agent Teams, modeled after a high-performance Scrum team.
 
-14 specialized roles. Ceremony-driven phase gates. Pair programming. Parallel reviews. Learnings that compound across sprints.
+18 specialized roles — each a super senior expert with domain-specific reasoning, red flag detection, and quality bars. Ceremony-driven phase gates. Pair programming. Parallel reviews. Learnings that compound across sprints.
 
 ```
 /prd-lifecycle ./docs/prd.md
@@ -12,27 +12,33 @@ A [Claude Code](https://claude.ai/download) skill that takes a PRD and orchestra
 
 ### Core Roles (always active)
 
-| Role | Purpose |
-|------|---------|
-| **Product Owner / Scrum Master** | Backlog, ceremonies, gates (the lead) |
-| `architect` | Design authority, architecture review |
-| `data-engineer` | Data model, schemas, migrations |
-| `dev-1` | Build + review dev-2's code |
-| `dev-2` | Build + review dev-1's code |
-| `qa-engineer` | Tests, build verification |
-| `security-reviewer` | OWASP, secrets, input validation |
-| `performance-reviewer` | Complexity, N+1, latency |
-| `code-reviewer` | Quality, SOLID, patterns |
-| `tech-writer` | Specs, API docs, README, changelog |
-| `release-engineer` | Git, CI/CD, deployment, PR |
+| Role | Expert Identity | Purpose |
+|------|----------------|---------|
+| **Lead** | Conductor + orchestrator | Backlog, ceremonies, gates, team coordination |
+| `product-manager` | Outcomes over outputs | Prioritization, scope boundaries, success criteria |
+| `scrum-master` | Impediment remover, not PM | WIP control, ceremonies, retrospectives |
+| `architect` | "What changes together = real boundaries" | Design authority, architecture review |
+| `data-engineer` | "Data outlives applications" | Data model, schemas, migrations |
+| `dev-1` | "Writes code others maintain" | Build + review dev-2's code |
+| `dev-2` | "Writes code others maintain" | Build + review dev-1's code |
+| `qa-engineer` | "Testing finds ways it breaks" | Tests, build verification |
+| `security-reviewer` | Assumes breach, thinks in attack trees | OWASP, secrets, input validation |
+| `performance-reviewer` | "Thinks in orders of magnitude" | Complexity, N+1, latency |
+| `code-reviewer` | "Reads code like an editor reads prose" | Quality, SOLID, patterns |
+| `tech-writer` | "Docs are the UI of your API" | Specs, API docs, README, changelog |
+| `release-engineer` | Last line of defense before prod | Git, CI/CD, deployment, PR |
 
 ### Conditional Specialists (activated by PRD domain)
 
-| Role | Activated When | Purpose |
-|------|---------------|---------|
-| `applied-ai-engineer` | PRD has AI/ML features | ML pipelines, model selection, prompt engineering, responsible AI |
-| `data-scientist` | PRD has analytics/experimentation | Metrics, A/B testing, event tracking, statistical modeling |
-| `ux-ui-designer` | PRD has user-facing interfaces | UX, accessibility (WCAG 2.1 AA), responsive design |
+| Role | Activated When | Expert Identity |
+|------|---------------|-----------------|
+| `applied-ai-engineer` | AI/ML features | "Simplest model that meets requirements" |
+| `data-scientist` | Analytics/experimentation | "Dashboards with 47 metrics where nobody knows which matter" |
+| `ux-ui-designer` | User-facing interfaces | "Designs for user who doesn't read instructions" |
+| `prompt-engineer` | LLM/prompt features | "Prompts are communication protocols, not magic" |
+| `data-analyst` | Data-heavy queries/reports | "Distributions, not averages" |
+| `fullstack-dev` | Cross-stack epics | "The API is the contract" |
+| `product-designer` | Complex user flows | "Problem solver, not pixel-pusher" |
 
 ## How It Works
 
@@ -223,7 +229,7 @@ prd-lifecycle/
   workflow.json                         # XState v5 machine definition (19 states)
   phases/
     phase2-sprints.md                   # Sprint execution sub-phases (BUILD, VERIFY, etc.)
-  preambles/
+  preambles/                                # 18 expert specialist personas
     architect.md                        # Architecture + integration
     data-engineer.md                    # Data model, schemas, migrations
     dev.md                              # Implementation + pair review
@@ -233,9 +239,15 @@ prd-lifecycle/
     code-reviewer.md                    # Quality, patterns, SOLID
     tech-writer.md                      # Docs, specs, changelog
     release-engineer.md                 # Git, CI/CD, versioning, deploy
+    product-manager.md                  # Prioritization, scope, success criteria
+    scrum-master.md                     # Ceremonies, WIP, impediments
     applied-ai-engineer.md              # AI/ML pipelines (conditional)
     data-scientist.md                   # Analytics, experimentation (conditional)
     ux-ui-designer.md                   # UX/UI, accessibility (conditional)
+    prompt-engineer.md                  # Prompt design, LLM integration (conditional)
+    data-analyst.md                     # Queries, reports, dashboards (conditional)
+    fullstack-dev.md                    # Cross-stack implementation (conditional)
+    product-designer.md                 # UX strategy, flows (conditional)
   templates/
     epic-breakdown.md                   # Epic decomposition schema
     review-verdict.md                   # Universal review verdict format
