@@ -1,11 +1,21 @@
 #!/bin/bash
-# Usage: bash init-sprint.sh <sprint-number> [project-root]
+# Usage: bash init-sprint.sh <sprint-number> [project-root] [instance]
 # Creates sprint-{n}/ directory with report stubs
 set -euo pipefail
 
+[[ $# -lt 1 ]] && { echo "Usage: $0 <sprint-number> [project-root] [instance]" >&2; exit 1; }
+
 SPRINT_NUM="$1"
+
+[[ ! "$SPRINT_NUM" =~ ^[0-9]+$ ]] && { echo "Error: sprint-number must be a positive integer" >&2; exit 1; }
 PROJECT_ROOT="${2:-.}"
-SPRINT_DIR="$PROJECT_ROOT/prd-lifecycle/sprints/sprint-$SPRINT_NUM"
+INSTANCE="${3:-}"
+
+if [[ -n "$INSTANCE" ]]; then
+  SPRINT_DIR="$PROJECT_ROOT/prd-lifecycle/$INSTANCE/sprints/sprint-$SPRINT_NUM"
+else
+  SPRINT_DIR="$PROJECT_ROOT/prd-lifecycle/sprints/sprint-$SPRINT_NUM"
+fi
 TODAY=$(date -u +%Y-%m-%d)
 
 mkdir -p "$SPRINT_DIR/reports"

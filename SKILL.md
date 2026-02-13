@@ -78,8 +78,7 @@ HARD RULES — violations of these rules are not permitted:
    separate phase after all sprints complete. Each sprint contains its own
    build + verify + review cycle.
 
-4. MAX 5 CONCURRENT TEAMMATES at any time. If you need more roles than 5 in a
-   sub-phase, stagger them: complete one batch, shut down, spawn the next.
+4. MAX 10 CONCURRENT TEAMMATES at any time. The TL decides team composition per ceremony based on PRD needs.
 
 5. MAX 3 FIX-VERIFY CYCLES per finding. If a reviewer flags an issue and the
    developer has attempted 3 fixes without resolution, the lead mediates and
@@ -100,8 +99,8 @@ HARD RULES — violations of these rules are not permitted:
    aggregated and provided to all teammates in subsequent sprints. No sprint
    operates without the accumulated wisdom of prior sprints.
 
-9. PROJECT-LOCAL ARTIFACTS. All output goes in `prd-lifecycle/` in the project
-   root. No files in `.omc/`, no files in `~/.claude/` except reading skill
+9. PROJECT-LOCAL ARTIFACTS. All output goes in `prd-lifecycle/{slug}/` in the
+   project root (where {slug} is the PRD instance slug from Step 0.2). No files in `.omc/`, no files in `~/.claude/` except reading skill
    preambles and scripts.
 
 10. CLEAN SHUTDOWN. Every teammate must be shut down via SendMessage
@@ -109,20 +108,43 @@ HARD RULES — violations of these rules are not permitted:
 
 11. GIT COMMIT AFTER EVERY SPRINT. After each sprint's retro is complete and
     teammates are shut down, commit all changes with a descriptive message:
-    "feat(sprint-{n}): implement epic E{id} — {epic title}". This creates
-    atomic rollback points per sprint. The commit step is in phase2-sprints.md.
+    # Mono-epic sprint:
+    feat(sprint-{n}): implement epic E{id} — {epic title}
+
+    # Multi-epic sprint:
+    feat(sprint-{n}): implement stories {S-IDs} from epics {E-IDs}
+    This creates atomic rollback points per sprint. The commit step is in phase2-sprints.md.
 
 12. NEVER STOP UNTIL LIFECYCLE COMPLETE. The Lead MUST continue executing
-    sprints until ALL epics are completed and the lifecycle reaches the
+    sprints until ALL stories are completed (product_backlog_count=0) and the lifecycle reaches the
     "completed" state. Do NOT pause between sprints to ask the user for
     permission to continue. Do NOT stop after a single sprint. Do NOT
     present intermediate results and wait. The user initiated a FULL
     lifecycle — execute it fully. The ONLY acceptable stop conditions are:
-    a) All epics complete and final retrospective presented (F.5)
+    a) All stories complete (product_backlog_count=0) and final retrospective presented (F.5)
     b) An escalation condition from section <Escalation_And_Stop_Conditions>
     c) A tool permission denial that cannot be worked around
     If context is running low between sprints, summarize progress and
     continue — do NOT stop and ask the user to resume.
+
+13. SIMPLICITY BIAS. You and every agent on the team have a documented
+    tendency to overengineer. Counteract this at every decision point:
+    a) In Ceremony 1 (Refinement): after synthesizing feedback, run a
+       Simplification Pass — compare refined stories against the original
+       PRD text and remove any additions not traceable to explicit PRD
+       requirements. Flag if story count grew >30% from the original.
+    b) In Ceremony 2 (Epic Decomposition): challenge the epic count.
+       Target the MINIMUM number of epics (3-5). Require written
+       justification for every epic beyond 5.
+    c) In Refinement (Phase 2): verify task counts per story. Flag any
+       story with >5 tasks for splitting. Flag sprint-level task:story
+       ratio >4:1.
+    d) In VERIFY (Phase 2): treat significant overengineering (>50% more
+       files or code than necessary) as a HIGH finding equivalent to a
+       bug — it blocks the sprint until simplified.
+    e) When ANY specialist proposes scope beyond the PRD, the Lead MUST
+       challenge: "Is this in the PRD? What happens if we don't do this?"
+       Additions not in the PRD are tagged POST-MVP and deferred.
 </Execution_Policy>
 
 <Steps>
@@ -136,22 +158,25 @@ STEP 0: INITIALIZATION
 
 RESUME CHECK (run FIRST, before anything else):
 
-     Run brain to check state and get navigation:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh
+     1. Run: bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh --list
 
-     If brain output shows "No state.json found":
-       This is a FRESH START. Continue with Step 0.1 below.
+     2. If "No PRD instances found":
+        This is a FRESH START. Continue with Step 0.1 below.
 
-     If brain output shows a POSITION with phase and step:
-       This is a RESUME scenario. Do NOT re-run brain --init.
-       1. Read prd-lifecycle/prd.json for the PRD content and slug
-       2. Read prd-lifecycle/learnings.md for accumulated context
-       3. Re-create the team: TeamCreate(team_name="{team_name from brain output}")
-       4. Discover lead name (step 0.3b)
-       5. Follow the PROTOCOL in the brain output:
-          - Read the file shown in LOAD (if any)
-          - Jump to the section shown in RESUME AT
-          - Follow instructions from that point
+     3. If instances exist:
+        a. Parse the PRD argument (step 0.1 logic) and derive slug (step 0.2 logic)
+        b. If an instance with matching slug exists in the list: RESUME that instance
+           - Run brain orient: bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug}
+           - Read prd-lifecycle/{slug}/prd.json for the PRD content
+           - Read prd-lifecycle/{slug}/learnings.md for accumulated context
+           - Re-create the team: TeamCreate(team_name="{team_name from brain output}")
+           - Discover lead name (step 0.3b)
+           - Follow the PROTOCOL from brain output:
+             Read the file shown in LOAD, jump to RESUME AT, follow from there
+        c. If NO matching slug: NEW PRD → continue to Step 0.1 below
+        d. If no PRD argument provided (bare /prd-lifecycle):
+           - If exactly 1 instance: RESUME it (same as 3b above)
+           - If multiple instances: ask user with AskUserQuestion which to resume
 
 0.1  PARSE PRD INPUT
 
@@ -246,10 +271,10 @@ EXECUTION MODEL:
 
 0.4  SCAFFOLD PROJECT DIRECTORY
 
-     Run: bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . --init
+     Run: bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} --init
 
      This creates:
-       prd-lifecycle/
+       prd-lifecycle/{slug}/
          arch/           — architecture docs per epic
          specs/          — functional specs per epic
          data/           — data model docs per epic
@@ -259,12 +284,12 @@ EXECUTION MODEL:
          learnings.md    — ACE learning compendium
 
      TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh team_name=prd-{slug} step=scaffold_complete
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} team_name=prd-{slug} step=scaffold_complete
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 0.5  PERSIST RAW PRD
 
-     Write the raw PRD content to prd-lifecycle/prd.json:
+     Write the raw PRD content to prd-lifecycle/{slug}/prd.json:
 
      {
        "raw": "<full PRD text>",
@@ -300,7 +325,7 @@ EXECUTION MODEL:
         If TRUE: the UX/UI Product Designer will participate in relevant phases.
 
      TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh has_ai_ml={true|false} has_analytics={true|false} has_frontend_ui={true|false} step=domains_detected
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} has_ai_ml={true|false} has_analytics={true|false} has_frontend_ui={true|false} step=domains_detected
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
      The conditional specialists and their phase participation:
@@ -397,7 +422,7 @@ have responded. If a teammate hasn't responded after 3 minutes, send a
 follow-up message. Continue only when all 5 have confirmed readiness.
 
 TRANSITION:
-bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh step=phase1_spawned
+bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=phase1_spawned
 Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 CONDITIONAL SPECIALIST ROTATION (Phase 1):
@@ -489,7 +514,9 @@ specialists, and has been validated from each domain perspective.
        content="BACKLOG REFINEMENT: Please review these user stories from your
        architecture perspective. For each story, provide: (1) feasibility
        assessment, (2) missing technical details, (3) suggested acceptance
-       criteria additions, (4) dependency flags. Stories: {story list}
+       criteria additions, (4) dependency flags, (5) T-shirt sizing estimate (XS/S/M/L/XL).
+       NOTE: T-shirt sizing is initial by Phase 1 specialists. Executors (devs, architect) adjust estimates during Refinement.
+       Stories: {story list}
        RESPONSE FORMAT: Respond via SendMessage with your feedback inline
        in the message content. Do NOT write to a file.",
        summary="Review stories from architecture perspective")
@@ -524,6 +551,22 @@ specialists, and has been validated from each domain perspective.
      suggests X while the data engineer suggests Y because Z. Which approach
      do you prefer?"
 
+1.4b SIMPLIFICATION PASS (mandatory — per Rule 13a)
+
+     Before sending revised stories for validation, compare against the
+     original PRD text:
+
+     a) For each story: is every acceptance criterion traceable to an
+        explicit PRD requirement? Remove or tag as POST-MVP any that aren't.
+     b) Count stories now vs. stories initially extracted from the PRD.
+        If growth ratio > 1.3x, flag to the team: "Story count grew from
+        {original} to {current} ({ratio}x). Justify each addition or cut."
+     c) Check for "infrastructure stories" added by specialists (e.g.,
+        "set up monitoring", "add logging framework", "create abstraction
+        layer") — these are POST-MVP unless the PRD explicitly requires them.
+     d) Remove duplicate or near-duplicate stories that emerged from
+        multiple specialists suggesting similar things independently.
+
 1.5  SEND REVISED STORIES FOR VALIDATION
 
      Send the revised story list back to all 5 teammates:
@@ -552,7 +595,7 @@ specialists, and has been validated from each domain perspective.
 1.7  GATE: PERSIST REFINED STORIES
 
      Once all 5 teammates approve (or lead has made binding decisions):
-     - Update prd-lifecycle/prd.json: set the "stories" array to the refined list
+     - Update prd-lifecycle/{slug}/prd.json: set the "stories" array to the refined list
      - Each story must have: id, title, description, acceptance_criteria (array),
        priority, domain_notes (object with keys: arch, data, qa, security, spec)
 
@@ -560,24 +603,31 @@ specialists, and has been validated from each domain perspective.
      by all specialists."
 
      TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh step=ceremony1_complete
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=ceremony1_complete
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 ----------------------------------------------------------------------------
 CEREMONY 2: EPIC DECOMPOSITION + REVIEW
 ----------------------------------------------------------------------------
 
-Goal: Group stories into 3-7 epics with clear boundaries and dependency ordering.
+Goal: Group stories into the MINIMUM number of epics needed (target: 3-5,
+maximum 7 only with written justification per Rule 13b).
 
 2.1  REQUEST EPIC PROPOSAL
 
      SendMessage to architect and data-engineer separately:
 
      "EPIC DECOMPOSITION: Based on the refined stories, propose an epic grouping.
-     Group related stories into 3-7 epics. For each epic provide: epic ID (E1,
-     E2...), title, included story IDs, rationale, estimated complexity
-     (S/M/L/XL), dependencies on other epics, and whether it is data-heavy
-     (requires schema changes, migrations, or significant data work).
+     Group related stories into the MINIMUM number of epics needed. Target 3-5
+     epics. You may propose up to 7 ONLY if you provide written justification
+     for why each epic beyond 5 cannot be merged into another.
+     For each epic provide: epic ID (E1, E2...), title, included story IDs,
+     rationale for why this epic MUST be separate (not just convenient),
+     estimated complexity (S/M/L/XL), dependencies on other epics, and whether
+     it is data-heavy (requires schema changes, migrations, or significant data
+     work).
+     SIMPLICITY CHECK: Before finalizing, verify — could any two epics be merged
+     without losing clarity? If yes, merge them.
      Here are the refined stories: {stories from prd.json}
      RESPONSE FORMAT: Respond via SendMessage with your proposed epic grouping
      inline in the message content. Do NOT write to a file yet."
@@ -621,7 +671,7 @@ Goal: Group stories into 3-7 epics with clear boundaries and dependency ordering
 
 2.5  GATE: PERSIST EPICS
 
-     Write to prd-lifecycle/epics.json:
+     Write to prd-lifecycle/{slug}/epics.json:
 
      {
        "epics": [
@@ -639,7 +689,7 @@ Goal: Group stories into 3-7 epics with clear boundaries and dependency ordering
      }
 
      TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh epics_remaining='["E1","E2","E3"]' step=ceremony2_complete
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=ceremony2_complete
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
      Announce: "Epic Decomposition complete. {N} epics defined. Execution order:
@@ -660,7 +710,7 @@ each validated by all 5 specialists.
         "ARCHITECTURE DOCS: For each epic, write an architecture document
         covering: file/module structure, component interfaces, integration
         points with other epics, technology choices, error handling strategy,
-        and scaling considerations. Write each to: prd-lifecycle/arch/epic-{id}.md
+        and scaling considerations. Write each to: prd-lifecycle/{slug}/arch/epic-{id}.md
         Epics: {epic list with stories}"
 
      b) data-engineer:
@@ -668,7 +718,7 @@ each validated by all 5 specialists.
         schema definitions (tables/collections with columns/fields and types),
         entity relationship descriptions, migration plan (up and down),
         index strategy, constraints and validation rules, and seed data needs.
-        Write each to: prd-lifecycle/data/epic-{id}.md
+        Write each to: prd-lifecycle/{slug}/data/epic-{id}.md
         Epics: {epic list with stories}"
 
      c) tech-writer:
@@ -676,7 +726,7 @@ each validated by all 5 specialists.
         covering: API contracts (endpoints, request/response schemas, status
         codes), user flows (step-by-step interactions), error scenarios
         (what can go wrong and how the system responds), and integration
-        touchpoints with other epics. Write each to: prd-lifecycle/specs/epic-{id}.md
+        touchpoints with other epics. Write each to: prd-lifecycle/{slug}/specs/epic-{id}.md
         Epics: {epic list with stories}"
 
      Wait for all 3 to complete their documents. Responses arrive as new
@@ -728,12 +778,18 @@ each validated by all 5 specialists.
      SendMessage — track which teammates have responded, send follow-up after
      5 minutes if missing). Have tech-writer revise. Iterate until consensus.
 
+3.4b CREATE PRODUCT BACKLOG
+     Run: bash ~/.claude/skills/prd-lifecycle/scripts/create-backlog.sh . {slug}
+     This creates backlog.json with all stories from the specification in status="backlog".
+     Verify: test -f prd-lifecycle/{slug}/backlog.json
+
 3.5  GATE: ALL DOCUMENTS FINALIZED
 
      Verify all files exist and have been approved:
-     - prd-lifecycle/arch/epic-{id}.md for each epic
-     - prd-lifecycle/data/epic-{id}.md for each epic
-     - prd-lifecycle/specs/epic-{id}.md for each epic
+     - prd-lifecycle/{slug}/arch/epic-{id}.md for each epic
+     - prd-lifecycle/{slug}/data/epic-{id}.md for each epic
+     - prd-lifecycle/{slug}/specs/epic-{id}.md for each epic
+     - prd-lifecycle/{slug}/backlog.json
 
      Announce: "Phase 1 Specification complete. Architecture, data model, and
      functional specs validated by all specialists."
@@ -756,7 +812,8 @@ each validated by all 5 specialists.
 3.7  TRANSITION TO PHASE 2
 
      TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh step=phase1_complete
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=phase1_complete product_backlog_count=N
+     Where N = `jq '[.stories[] | select(.status != "done")] | length' prd-lifecycle/{slug}/backlog.json`
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
      NOTE: Brain output will show LOAD: ~/.claude/skills/prd-lifecycle/phases/phase2-sprints.md
@@ -770,7 +827,7 @@ PHASE 3: RELEASE
 R.1  TRANSITION TO RELEASE
 
      TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh step=release_started
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=release_started product_backlog_count=0
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 R.2  SPAWN RELEASE TEAMMATES (2)
@@ -800,17 +857,17 @@ R.3  DISTRIBUTE CONTEXT (SCOPED PER ROLE)
      context overload:
 
      Tech-writer receives (documentation-focused):
-     - Architecture docs paths (arch/*.md)
-     - Spec paths (specs/*.md)
-     - Data model doc paths (data/*.md)
-     - The original PRD (prd.json)
-     - Latest sprint review only (sprints/sprint-{last}/review.md)
+     - Architecture docs paths (prd-lifecycle/{slug}/arch/*.md)
+     - Spec paths (prd-lifecycle/{slug}/specs/*.md)
+     - Data model doc paths (prd-lifecycle/{slug}/data/*.md)
+     - The original PRD (prd-lifecycle/{slug}/prd.json)
+     - Latest sprint review only (prd-lifecycle/{slug}/sprints/sprint-{last}/review.md)
      - Instruction: "Read these files incrementally, one directory at a time"
 
      Release-engineer receives (ops-focused):
-     - Sprint review summary paths (sprints/sprint-*/review.md)
-     - Accumulated learnings path (learnings.md)
-     - The original PRD (prd.json)
+     - Sprint review summary paths (prd-lifecycle/{slug}/sprints/sprint-*/review.md)
+     - Accumulated learnings path (prd-lifecycle/{slug}/learnings.md)
+     - The original PRD (prd-lifecycle/{slug}/prd.json)
      - No architecture, spec, or data model docs (not needed for release)
 
      IMPORTANT: Send file PATHS only, not contents. Let each teammate
@@ -820,7 +877,7 @@ R.4  TECH WRITER DELIVERABLES
 
      Send to tech-writer:
      "RELEASE DOCUMENTATION: Produce the following deliverables. Write each
-     to prd-lifecycle/release/:
+     to prd-lifecycle/{slug}/release/:
      1. README.md — Project overview, setup instructions, usage guide
      2. API.md — Complete API documentation (from specs)
      3. DATA.md — Data model documentation (from data model docs)
@@ -839,17 +896,17 @@ R.5  RELEASE ENGINEER DELIVERABLES
      6. PR creation — create a pull request with comprehensive description
         summarizing all epics, changes, and review outcomes
      Write deployment/CI configs to the project root. Write the migration plan
-     to prd-lifecycle/release/MIGRATION.md."
+     to prd-lifecycle/{slug}/release/MIGRATION.md."
 
 R.6  GATE: RELEASE ARTIFACTS COMPLETE
 
      Verify all deliverables exist:
-     - prd-lifecycle/release/README.md
-     - prd-lifecycle/release/API.md
-     - prd-lifecycle/release/DATA.md
-     - prd-lifecycle/release/CHANGELOG.md
-     - prd-lifecycle/release/RELEASE-NOTES.md
-     - prd-lifecycle/release/MIGRATION.md (if data changes exist)
+     - prd-lifecycle/{slug}/release/README.md
+     - prd-lifecycle/{slug}/release/API.md
+     - prd-lifecycle/{slug}/release/DATA.md
+     - prd-lifecycle/{slug}/release/CHANGELOG.md
+     - prd-lifecycle/{slug}/release/RELEASE-NOTES.md
+     - prd-lifecycle/{slug}/release/MIGRATION.md (if data changes exist)
      - CI/CD configuration file in project root
      - PR created (or ready to create)
 
@@ -866,7 +923,7 @@ R.7b GIT COMMIT RELEASE WORK
      git add -A && git commit -m "feat(release): complete release — docs, changelog, and deployment config"
 
      TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh step=release_done
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=release_done
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 
@@ -877,17 +934,17 @@ FINAL RETROSPECTIVE
 F.1  TRANSITION TO COMPLETED
 
      TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh step=completed
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=completed
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 F.2  FINAL LEARNING AGGREGATION
 
-     Run: bash ~/.claude/skills/prd-lifecycle/scripts/collect-learnings.sh
+     Run: bash ~/.claude/skills/prd-lifecycle/scripts/collect-learnings.sh . {slug}
 
 F.3  COMPILE FULL RETROSPECTIVE
 
-     Read all sprint retros (sprints/sprint-*/retro.md). Write a comprehensive
-     final retrospective to prd-lifecycle/release/RETROSPECTIVE.md covering:
+     Read all sprint retros (prd-lifecycle/{slug}/sprints/sprint-*/retro.md). Write a comprehensive
+     final retrospective to prd-lifecycle/{slug}/release/RETROSPECTIVE.md covering:
      - Overall timeline (sprints completed, total ceremony count)
      - Top strategies that worked across sprints
      - Top pitfalls encountered and how they were resolved
@@ -910,10 +967,10 @@ F.5  PRESENT FINAL REPORT TO USER
 
      ### Deliverables
      - Source code: {summary of what was built}
-     - Documentation: prd-lifecycle/release/README.md, API.md, DATA.md
-     - Release notes: prd-lifecycle/release/RELEASE-NOTES.md
-     - Changelog: prd-lifecycle/release/CHANGELOG.md
-     - All review reports: prd-lifecycle/sprints/sprint-*/reports/
+     - Documentation: prd-lifecycle/{slug}/release/README.md, API.md, DATA.md
+     - Release notes: prd-lifecycle/{slug}/release/RELEASE-NOTES.md
+     - Changelog: prd-lifecycle/{slug}/release/CHANGELOG.md
+     - All review reports: prd-lifecycle/{slug}/sprints/sprint-*/reports/
 
      ### Key Learnings
      {top 3-5 ACE entries from learnings.md}
@@ -962,18 +1019,19 @@ FILE OPERATIONS:
 - Edit — update existing files (reports, specs, docs — NEVER state.json)
 
 SHELL SCRIPTS:
-- Bash: bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . --init — scaffold
-  the prd-lifecycle/ directory with all subdirectories and initial state
-- Bash: bash ~/.claude/skills/prd-lifecycle/scripts/init-sprint.sh {n} — create sprint-{n}/ directory with
+- Bash: bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} --init — scaffold
+  the prd-lifecycle/{slug}/ directory with all subdirectories and initial state
+- Bash: bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh --list — list all PRD instances
+- Bash: bash ~/.claude/skills/prd-lifecycle/scripts/init-sprint.sh {n} . {slug} — create sprint-{n}/ directory with
   report stubs, review template, and retrospective template
-- Bash: bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh [key=value ...] — unified state
+- Bash: bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} [key=value ...] — unified state
   management + navigation. Writes state, outputs where to go next, logs to brain.log.
-  Orient-only: no args. Write+orient: key=value pairs. Complete epic: add-completed=E{id}.
-- Bash: bash ~/.claude/skills/prd-lifecycle/scripts/collect-learnings.sh — aggregate ACE entries from all sprint
+  Orient-only: just instance=. Write+orient: key=value pairs. Complete epic: add-completed=E{id}.
+- Bash: bash ~/.claude/skills/prd-lifecycle/scripts/collect-learnings.sh . {slug} — aggregate ACE entries from all sprint
   retrospectives into the master learnings.md compendium
 
 FILE DISCOVERY:
-- Glob — find files by pattern (e.g., prd-lifecycle/sprints/sprint-*/reports/*.md)
+- Glob — find files by pattern (e.g., prd-lifecycle/{slug}/sprints/sprint-*/reports/*.md)
 - Grep — search file contents (e.g., find CRITICAL findings across all reports)
 
 USER INTERACTION:
@@ -1137,7 +1195,7 @@ PHASE 2 GATES (per sprint):
 - [ ] All sprint teammates shut down cleanly
 
 PHASE 2 AGGREGATE:
-- [ ] All epics in execution_order have completed sprints with GO decisions
+- [ ] All stories completed (product_backlog_count=0)
 - [ ] learnings.md is up to date with all sprint retros aggregated
 
 PHASE 3 GATES:
@@ -1190,17 +1248,16 @@ RESUME:
   ║  Direct writes corrupt the XState snapshot format.              ║
   ╚══════════════════════════════════════════════════════════════════╝
 
-  All lifecycle state is persisted in prd-lifecycle/state.json as an XState v5
+  All lifecycle state is persisted in prd-lifecycle/{slug}/state.json as an XState v5
   snapshot. The file is managed EXCLUSIVELY by the brain engine. The format is:
 
   {
     "value": { "execution": { "sprint": "build" } },   ← nested state path
     "context": {
+      "instance": "task-api",
       "team_name": "prd-task-api",
       "current_sprint": 2,
-      "current_epic": "E3",
-      "epics_completed": ["E1", "E2"],
-      "epics_remaining": ["E3", "E4"],
+      "product_backlog_count": 0,
       "has_ai_ml": false,
       "has_analytics": false,
       "has_frontend_ui": true,
@@ -1225,7 +1282,8 @@ RESUME:
   | phase1_spawned | specification | Teammates active | Resume ceremonies |
   | ceremony1_complete | specification | Backlog refined | Ceremony 2 |
   | ceremony2_complete | specification | Epics decomposed | Ceremony 3 |
-  | phase1_complete | execution | Specs validated | First sprint (S.1) |
+  | refinement | execution | Team refines product backlog stories into tasks with SP | Continue refinement |
+  | sprint_planning | execution | TL + SM select stories for sprint based on capacity | Continue sprint planning |
   | sprint_setup | execution | Sprint dir created | Spawn BUILD teammates (A.1) |
   | sprint_build | execution | BUILD in progress | Continue BUILD |
   | sprint_build_done | execution | Devs shut down | Start VERIFY (B.1) |
@@ -1244,19 +1302,46 @@ RESUME:
 
   To resume an interrupted lifecycle:
   1. The RESUME CHECK at the top of Step 0 handles this automatically
-  2. Run brain with no arguments — it reads state.json and outputs navigation
+  2. Run brain --list to find instances, then brain . instance={slug} to orient
   3. Re-creates the team: TeamCreate(team_name="{team_name from brain output}")
   4. Discovers lead name (step 0.3b)
   5. Follow the PROTOCOL in the brain output (LOAD + RESUME AT)
   6. Re-spawns only the teammates needed for the current sub-phase
 
-  All artifacts from completed phases are preserved in prd-lifecycle/ and do
+  All artifacts from completed phases are preserved in prd-lifecycle/{slug}/ and do
   not need to be regenerated. Architecture docs, data models, specs, and
   sprint reports from completed work remain available for context.
 
   IMPORTANT: When resuming mid-sprint, read the sprint's existing reports
   and task list to understand what BUILD/VERIFY work has already been done.
   Do not re-run completed tasks.
+
+EXTERNAL SCRIPTS (ADVISORY):
+
+  These scripts perform calculations outside the brain. They provide DATA — they never send brain events.
+
+  | Script | Usage | Output |
+  |--------|-------|--------|
+  | `create-backlog.sh` | `bash ~/.claude/skills/prd-lifecycle/scripts/create-backlog.sh . {slug}` | Creates backlog.json from specs + epics.json |
+  | `calculate-capacity.sh` | `bash ~/.claude/skills/prd-lifecycle/scripts/calculate-capacity.sh . {slug}` | `capacity=N` (moving avg, clamped [8,21]) |
+  | `record-velocity.sh` | `bash ~/.claude/skills/prd-lifecycle/scripts/record-velocity.sh . {slug} {sprint} {planned} {completed}` | Appends to velocity.json |
+  | `check-epic-status.sh` | `bash ~/.claude/skills/prd-lifecycle/scripts/check-epic-status.sh . {slug}` | JSON array of 100%-done epic IDs |
+  | `check-refinement.sh` | `bash ~/.claude/skills/prd-lifecycle/scripts/check-refinement.sh . {slug} {capacity}` | `recommendation|refined_sp=N|threshold=M` |
+
+BACKLOG FRESHNESS INVARIANT:
+
+  ALWAYS recompute `product_backlog_count` from backlog.json immediately before every routing event:
+  ```bash
+  jq '[.stories[] | select(.status != "done")] | length' prd-lifecycle/{slug}/backlog.json
+  ```
+  NEVER use a cached value. If the value drifts from reality, guards (hasRemainingStories/noRemainingStories) will make incorrect routing decisions.
+
+  Events requiring fresh count: PHASE1_COMPLETE, REFINEMENT_DONE, START_REFINEMENT, START_PLANNING, START_RELEASE.
+
+TEMPLATE REFERENCES:
+
+  - Sprint backlog format: `~/.claude/skills/prd-lifecycle/templates/sprint-backlog.json`
+  - Velocity tracking: `~/.claude/skills/prd-lifecycle/templates/velocity.json`
 
 PRD FORMAT GUIDE:
 
@@ -1327,8 +1412,8 @@ TROUBLESHOOTING:
 
   State file corruption:
   - NEVER write state.json directly — it is an XState snapshot managed by brain
-  - If parseable: fix via brain transition (e.g., brain/run.sh step=sprint_build)
-  - If unparseable: delete state.json and re-initialize with brain --init,
+  - If parseable: fix via brain transition (e.g., brain/run.sh . instance={slug} step=sprint_build)
+  - If unparseable: delete state.json and re-initialize with brain . instance={slug} --init,
     then advance to the correct state using brain transitions
   - Reconstruct position from artifacts (check which sprint dirs exist,
     which epic docs exist, which reports are written)

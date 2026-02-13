@@ -1,0 +1,22 @@
+{
+  "sprint_number": 0,
+  "capacity": 13,
+  "planned_points": 0,
+  "stories": [
+    {
+      "id": "S1",
+      "epic_id": "E1",
+      "story_points": 3,
+      "status": "planned",
+      "tasks": [
+        {
+          "id": "IMPL-S1-1",
+          "description": "...",
+          "story_points": 2,
+          "status": "pending"
+        }
+      ]
+    }
+  ],
+  "spillover_from_previous": []
+}

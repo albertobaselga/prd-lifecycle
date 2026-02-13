@@ -1,10 +1,18 @@
 #!/bin/bash
-# Usage: bash collect-learnings.sh [project-root]
+# Usage: bash collect-learnings.sh [project-root] [instance]
 # Aggregates ACE entries from all sprint retros into master learnings.md
 set -euo pipefail
 
 PROJECT_ROOT="${1:-.}"
-BASE="$PROJECT_ROOT/prd-lifecycle"
+
+[[ ! -d "$PROJECT_ROOT" ]] && { echo "Error: project root '$PROJECT_ROOT' not found" >&2; exit 1; }
+INSTANCE="${2:-}"
+
+if [[ -n "$INSTANCE" ]]; then
+  BASE="$PROJECT_ROOT/prd-lifecycle/$INSTANCE"
+else
+  BASE="$PROJECT_ROOT/prd-lifecycle"
+fi
 MASTER="$BASE/learnings.md"
 
 echo "# ACE Learnings — Cross-Sprint Compendium" > "$MASTER"

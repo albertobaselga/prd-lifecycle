@@ -1,10 +1,237 @@
 # Phase 2: Execution Sprints
 
-Execute one sprint per epic (or batch independent epics into one sprint if they
-share no dependencies and combined complexity is manageable). Follow the execution
-order from epics.json.
+## Teammate Lifecycle
 
-For EACH sprint:
+| Role | Lifecycle | Spawn Point | Shutdown Point |
+|------|-----------|-------------|----------------|
+| Scrum Master (SM) | Long-lived | First Refinement | Before Release |
+| Product Manager (PM) | Per-cycle | Refinement start | After Sprint Review |
+| Developers (dev-1, dev-2) | Per-sprint | BUILD sub-phase | After BUILD complete |
+| Reviewers (qa, security, etc.) | Per-sprint | VERIFY sub-phase | After VERIFY complete |
+| Architect | Per-sprint | ARCH REVIEW sub-phase | After Retro |
+| Conditional specialists | As needed | Per sub-phase | After sub-phase |
+
+Execute sprints using story-based planning. Stories from multiple epics may be batched
+into a single sprint if they share no dependencies and combined capacity is manageable.
+Follow the continuous cycle: REFINEMENT → PLANNING → SPRINT → RETRO → (loop or release).
+
+For EACH cycle:
+
+----------------------------------------------------------------------------
+REFINEMENT (Team: TL + SM + PM + Executors)
+----------------------------------------------------------------------------
+
+R.1  SPAWN SCRUM MASTER (if not already alive)
+
+     If this is the first refinement session, spawn the Scrum Master:
+
+     Task(subagent_type="general-purpose", model="sonnet",
+          team_name="prd-{slug}", name="scrum-master",
+          prompt="You are the Scrum Master. You facilitate refinement sessions,
+          sprint planning, and retrospectives. You help the team estimate story
+          points, decompose stories into tasks, and maintain process discipline.
+          Read your role instructions from
+          ~/.claude/skills/prd-lifecycle/preambles/scrum-master.md and prior
+          learnings from prd-lifecycle/{slug}/learnings.md (if it exists) before
+          starting work.
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
+
+     The Scrum Master stays alive across all refinement and planning sessions
+     until just before release.
+
+R.2  SPAWN PRODUCT MANAGER
+
+     Task(subagent_type="general-purpose", model="sonnet",
+          team_name="prd-{slug}", name="product-manager",
+          prompt="You are the Product Manager. Present stories from the backlog,
+          explain business context, answer clarifying questions, and validate
+          that decomposed tasks meet acceptance criteria. Read your role
+          instructions from ~/.claude/skills/prd-lifecycle/preambles/product-manager.md
+          and prior learnings from prd-lifecycle/{slug}/learnings.md (if it exists)
+          before starting work.
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
+
+R.3  FACILITATE REFINEMENT SESSION
+
+     SM facilitates the refinement session:
+
+     SendMessage(type="message", recipient="scrum-master",
+       content="REFINEMENT SESSION: Read prd-lifecycle/{slug}/backlog.json and
+       identify all stories with status=\"backlog\". Present each story to the
+       team for decomposition and estimation. Use the Story Point calibration
+       table to guide estimates:
+
+       | SP | T-shirt | Files | Risk |
+       |---|---|---|---|
+       | 1 | XS | 1-2 | Minimal |
+       | 2 | S | 2-3 | Low |
+       | 3 | M | 4-6 | Moderate |
+       | 5 | L | 7-10 | High |
+       | 8 | XL | 10+ | Very High |
+
+       For each story, coordinate with PM to:
+       1. Clarify acceptance criteria
+       2. Decompose into tasks (implementation, review, testing)
+       3. Estimate story points based on complexity and risk
+       4. Update backlog.json: change status to \"refined\", add tasks array
+          and story_points field
+
+       Present stories in priority order from backlog.json. Work through the
+       backlog until the team signals capacity for planning or until all
+       stories are refined.
+
+       RESPONSE FORMAT: After refining each batch of stories, report:
+       - Stories refined (IDs and titles)
+       - Story points assigned
+       - Number of stories remaining with status=\"backlog\"",
+       summary="Refinement session facilitation")
+
+     Wait for SM's SendMessage response. Track refinement progress. The PM may
+     send clarifying questions to the lead — answer them and relay to SM.
+
+R.4  PRODUCT MANAGER VALIDATION
+
+     After SM reports refinement progress, send to PM:
+
+     SendMessage(type="message", recipient="product-manager",
+       content="VALIDATE REFINEMENT: Review the refined stories in
+       prd-lifecycle/{slug}/backlog.json. Verify that:
+       1. Tasks cover all acceptance criteria
+       2. Story points align with complexity
+       3. No critical details were missed
+
+       If validation fails, report which stories need re-refinement.
+       If validation passes, confirm readiness for planning.",
+       summary="Refinement validation")
+
+     Wait for PM's SendMessage response.
+
+     If PM requests re-refinement, relay feedback to SM and repeat R.3.
+     Maximum 2 refinement cycles per batch.
+
+R.5  SHUTDOWN PRODUCT MANAGER
+
+     After successful validation:
+     SendMessage(type="shutdown_request", recipient="product-manager",
+       content="Refinement complete.")
+
+     Wait for shutdown confirmation (response arrives as a new conversation turn).
+
+     The Scrum Master stays alive for Sprint Planning.
+
+R.6  TRANSITION TO PLANNING GATE
+
+     Count remaining backlog stories:
+     BACKLOG_COUNT=$(jq '[.stories[] | select(.status != "done")] | length' prd-lifecycle/{slug}/backlog.json)
+
+     TRANSITION:
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=refinement_done product_backlog_count=$BACKLOG_COUNT
+
+     Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
+
+     Template reference: See ~/.claude/skills/prd-lifecycle/templates/sprint-backlog.json
+     for the sprint backlog format that will be created during Planning.
+
+----------------------------------------------------------------------------
+SPRINT PLANNING (Team: TL + SM only)
+----------------------------------------------------------------------------
+
+P.1  CALCULATE CAPACITY
+
+     SM runs capacity calculation:
+
+     SendMessage(type="message", recipient="scrum-master",
+       content="CALCULATE CAPACITY: Run:
+       bash ~/.claude/skills/prd-lifecycle/scripts/calculate-capacity.sh . {slug}
+
+       This returns team capacity in story points for the upcoming sprint.
+       Report the capacity value.",
+       summary="Capacity calculation")
+
+     Wait for SM's SendMessage response with capacity value.
+
+P.2  PRESENT VELOCITY TREND
+
+     SM analyzes velocity history:
+
+     SendMessage(type="message", recipient="scrum-master",
+       content="VELOCITY ANALYSIS: Read prd-lifecycle/{slug}/velocity.json and
+       present the velocity trend for the last 3 sprints (if available).
+       Calculate average velocity. Compare to current capacity.
+       Recommend: Use lower of (capacity, avg velocity) for planning.",
+       summary="Velocity trend analysis")
+
+     Wait for SM's SendMessage response with velocity recommendation.
+
+P.3  SELECT STORIES FOR SPRINT
+
+     Team Lead + SM collaborate to select stories:
+
+     SendMessage(type="message", recipient="scrum-master",
+       content="STORY SELECTION: Read prd-lifecycle/{slug}/backlog.json.
+       Select stories where status=\"refined\", ordered by priority field
+       (ascending = higher priority), up to {capacity} story points.
+
+       Include any spillover stories from the previous sprint (status=\"spillover\").
+       Spillover stories take priority over new refined stories.
+
+       List the selected story IDs and their total story points.",
+       summary="Story selection for sprint")
+
+     Wait for SM's SendMessage response with selected stories.
+
+     Lead verifies the selection. If adjustments needed, send feedback to SM
+     and repeat P.3. Maximum 2 selection cycles.
+
+P.4  CREATE SPRINT BACKLOG
+
+     After story selection is confirmed:
+
+     SendMessage(type="message", recipient="scrum-master",
+       content="CREATE SPRINT BACKLOG: Update backlog.json and create sprint
+       backlog:
+
+       1. In prd-lifecycle/{slug}/backlog.json, change status=\"refined\" to
+          status=\"planned\" for all selected stories
+       2. For spillover stories, change status=\"spillover\" to status=\"planned\"
+       3. Create directory: mkdir -p prd-lifecycle/{slug}/sprints/sprint-{n}
+       4. Write prd-lifecycle/{slug}/sprints/sprint-{n}/sprint-backlog.json
+          using the template from ~/.claude/skills/prd-lifecycle/templates/sprint-backlog.json
+
+       The sprint backlog must include:
+       - sprint_number: {n}
+       - stories: array of selected stories (copy from backlog.json)
+       - Each story includes: id, title, epic_id, story_points, tasks, status
+
+       Report when complete.",
+       summary="Sprint backlog creation")
+
+     Wait for SM's SendMessage response confirming sprint backlog creation.
+
+P.5  TRANSITION TO SPRINT EXECUTION
+
+     TRANSITION:
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=sprint_planning_done
+
+     NOTE: The current_sprint counter increments automatically via brain action
+     on PLANNING_DONE event.
+
+     Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
+
+     Template reference: See ~/.claude/skills/prd-lifecycle/templates/velocity.json
+     for the velocity tracking format.
+
+     NOTE: The brain enforces product_backlog_count > 0 for START_PLANNING
+     via the hasRemainingStories guard. If the Lead were to send
+     START_PLANNING with product_backlog_count=0, the brain would reject
+     the event. In practice, T.4e prevents this by routing to START_RELEASE
+     when $REMAINING equals 0. This guard provides a safety net.
 
 ----------------------------------------------------------------------------
 SPRINT SETUP
@@ -12,11 +239,18 @@ SPRINT SETUP
 
 S.1  INITIALIZE SPRINT DIRECTORY
 
-     Determine sprint number (starts at 1, increments per sprint).
-     Run: bash ~/.claude/skills/prd-lifecycle/scripts/init-sprint.sh {n}
+     The sprint directory was already created during Planning (P.4), but we
+     need to initialize the reports structure.
 
-     This creates:
-       prd-lifecycle/sprints/sprint-{n}/
+     Run: bash ~/.claude/skills/prd-lifecycle/scripts/init-sprint.sh {n} . {slug}
+
+     The script is idempotent — it checks `test -f sprint-backlog.json` before
+     creating. If sprint-backlog.json exists, it only creates missing report
+     files.
+
+     This ensures:
+       prd-lifecycle/{slug}/sprints/sprint-{n}/
+         sprint-backlog.json (already exists from Planning)
          reports/
            qa.md
            security.md
@@ -24,16 +258,16 @@ S.1  INITIALIZE SPRINT DIRECTORY
            code-review.md
            arch-review.md
            data-review.md
-         review.md
-         retro.md
+         review.md (to be created)
+         retro.md (to be created)
 
      TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh current_epic=E{id} step=sprint_setup
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=sprint_build
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 S.2  LOAD PRIOR LEARNINGS
 
-     Read prd-lifecycle/learnings.md. This file contains accumulated ACE entries
+     Read prd-lifecycle/{slug}/learnings.md. This file contains accumulated ACE entries
      from all prior sprints. All teammates spawned in this sprint will receive
      these learnings as part of their context.
 
@@ -49,30 +283,38 @@ S.2  LOAD PRIOR LEARNINGS
 
 S.3  CREATE TASKS WITH DEPENDENCY GRAPH
 
-     Use TaskCreate to create all tasks for this sprint. Use TaskUpdate with
-     addBlockedBy to establish the dependency chain.
+     Use TaskCreate to create all tasks for this sprint. Read sprint-backlog.json
+     to get the stories and their pre-defined tasks (tasks were created during
+     Refinement).
 
-     For STANDARD epics (not data-heavy):
-       Task 1: IMPL-{epic}-1 — "Implement {story group A}"
-       Task 2: IMPL-{epic}-2 — "Implement {story group B}"
-       Task 3: PAIR-REVIEW-1 — "Pair review of IMPL-1" (blockedBy: IMPL-1)
-       Task 4: PAIR-REVIEW-2 — "Pair review of IMPL-2" (blockedBy: IMPL-2)
-       Task 5: QA — "QA verification" (blockedBy: PAIR-REVIEW-1, PAIR-REVIEW-2)
-       Task 6: SECURITY — "Security review" (blockedBy: PAIR-REVIEW-1, PAIR-REVIEW-2)
-       Task 7: PERFORMANCE — "Performance review" (blockedBy: PAIR-REVIEW-1, PAIR-REVIEW-2)
-       Task 8: CODE-REVIEW — "Code quality review" (blockedBy: PAIR-REVIEW-1, PAIR-REVIEW-2)
-       Task 9: ARCH-REVIEW — "Architecture review" (blockedBy: QA, SECURITY, PERFORMANCE, CODE-REVIEW)
-       Task 10: SPRINT-REVIEW — "Sprint review" (blockedBy: ARCH-REVIEW)
+     STORY-BASED TASK STRUCTURE:
 
-     For DATA-HEAVY epics:
-       Task 1: DATA-{epic} — "Implement data layer (schemas, migrations)"
-       Task 2: IMPL-{epic}-1 — "Implement {story group A}" (blockedBy: DATA)
-       Task 3: IMPL-{epic}-2 — "Implement {story group B}" (blockedBy: DATA)
-       Task 4-5: PAIR-REVIEW tasks (blockedBy: respective IMPL)
-       Task 6: DATA-REVIEW — "Data model review" (blockedBy: PAIR-REVIEW-1, PAIR-REVIEW-2)
-       Task 7-10: QA, SECURITY, PERFORMANCE, CODE-REVIEW (blockedBy: PAIR-REVIEW-1, PAIR-REVIEW-2)
-       Task 11: ARCH-REVIEW (blockedBy: QA, SECURITY, PERFORMANCE, CODE-REVIEW, DATA-REVIEW)
-       Task 12: SPRINT-REVIEW (blockedBy: ARCH-REVIEW)
+     Tasks are organized per story, not per epic. A sprint may contain stories
+     from multiple epics. Each story has its own implementation and review tasks.
+
+     For each story in sprint-backlog.json:
+       Task {story-id}-IMPL — "Implement {story title}" (includes story's tasks array)
+       Task {story-id}-REVIEW — "Pair review of {story-id}" (blockedBy: {story-id}-IMPL)
+
+     After all story-specific tasks, create verification tasks:
+       Task QA — "QA verification" (blockedBy: all REVIEW tasks)
+       Task SECURITY — "Security review" (blockedBy: all REVIEW tasks)
+       Task PERFORMANCE — "Performance review" (blockedBy: all REVIEW tasks)
+       Task CODE-REVIEW — "Code quality review" (blockedBy: all REVIEW tasks)
+       Task ARCH-REVIEW — "Architecture review" (blockedBy: QA, SECURITY, PERFORMANCE, CODE-REVIEW)
+       Task SPRINT-REVIEW — "Sprint review" (blockedBy: ARCH-REVIEW)
+
+     For DATA-HEAVY stories (identified by epic's has_data_layer flag):
+       Task DATA-{story-id} — "Implement data layer for {story-id}" (runs first)
+       Task {story-id}-IMPL (blockedBy: DATA-{story-id})
+       Task DATA-REVIEW — "Data model review" (blockedBy: all REVIEW tasks)
+       Task ARCH-REVIEW (blockedBy: QA, SECURITY, PERFORMANCE, CODE-REVIEW, DATA-REVIEW)
+
+     MULTI-EPIC AWARENESS:
+
+     Stories in this sprint may come from different epics (check epic_id field
+     in sprint-backlog.json). This affects context distribution — each developer
+     needs docs for their assigned stories' epics.
 
 ----------------------------------------------------------------------------
 SUB-PHASE A: BUILD (2-3 teammates)
@@ -80,14 +322,14 @@ SUB-PHASE A: BUILD (2-3 teammates)
 
 A.1  SPAWN BUILD TEAMMATES
 
-     For standard epics, spawn 2 developers:
+     For standard stories, spawn 2 developers:
 
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="dev-1",
           prompt="You are Developer 1 in a pair programming team. You implement
           features and review your partner's code. Read your role instructions
           from ~/.claude/skills/prd-lifecycle/preambles/dev.md and prior
-          learnings from prd-lifecycle/learnings.md (if it exists) before
+          learnings from prd-lifecycle/{slug}/learnings.md (if it exists) before
           starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
@@ -99,74 +341,74 @@ A.1  SPAWN BUILD TEAMMATES
           prompt="You are Developer 2 in a pair programming team. You implement
           features and review your partner's code. Read your role instructions
           from ~/.claude/skills/prd-lifecycle/preambles/dev.md and prior
-          learnings from prd-lifecycle/learnings.md (if it exists) before
+          learnings from prd-lifecycle/{slug}/learnings.md (if it exists) before
           starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
           the lead.")
 
-     For data-heavy epics, also spawn data-engineer:
+     For data-heavy stories, also spawn data-engineer:
 
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="data-engineer",
           prompt="You are the Data Engineer. Implement the data layer: schemas,
           migrations, seed data, and data access patterns. Read your role
           instructions from ~/.claude/skills/prd-lifecycle/preambles/data-engineer.md
-          and prior learnings from prd-lifecycle/learnings.md (if it exists)
+          and prior learnings from prd-lifecycle/{slug}/learnings.md (if it exists)
           before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
           the lead.")
 
-     CONDITIONAL BUILD SPECIALISTS (max 3 total with devs, respecting 5-limit):
+     CONDITIONAL BUILD SPECIALISTS (max 3 total with devs, respecting 10-limit):
 
-     If has_ai_ml AND this epic involves AI/ML features, spawn applied-ai-engineer
+     If has_ai_ml AND stories in this sprint involve AI/ML features, spawn applied-ai-engineer
      INSTEAD OF one dev (use dev-1 only + applied-ai-engineer):
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="applied-ai-engineer",
           prompt="You are the Applied AI Engineer. Implement the ML pipeline
-          components for this epic. Read your role instructions from
+          components for stories in this sprint. Read your role instructions from
           ~/.claude/skills/prd-lifecycle/preambles/applied-ai-engineer.md and
-          prior learnings from prd-lifecycle/learnings.md (if it exists)
+          prior learnings from prd-lifecycle/{slug}/learnings.md (if it exists)
           before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
           the lead.")
 
-     If has_frontend_ui AND this epic involves significant UI work, spawn
+     If has_frontend_ui AND stories in this sprint involve significant UI work, spawn
      ux-ui-designer INSTEAD OF one dev (use dev-1 only + ux-ui-designer):
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="ux-ui-designer",
           prompt="You are the UX/UI Product Designer. Implement the UI
           components and ensure accessibility compliance. Read your role
           instructions from ~/.claude/skills/prd-lifecycle/preambles/ux-ui-designer.md
-          and prior learnings from prd-lifecycle/learnings.md (if it exists)
+          and prior learnings from prd-lifecycle/{slug}/learnings.md (if it exists)
           before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
           the lead.")
 
-     If has_analytics AND this epic involves analytics features, spawn
+     If has_analytics AND stories in this sprint involve analytics features, spawn
      data-scientist INSTEAD OF one dev (use dev-1 only + data-scientist):
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="data-scientist",
           prompt="You are the Data Scientist. Implement the analytics pipeline,
           event tracking, and metrics infrastructure. Read your role instructions
           from ~/.claude/skills/prd-lifecycle/preambles/data-scientist.md and
-          prior learnings from prd-lifecycle/learnings.md (if it exists)
+          prior learnings from prd-lifecycle/{slug}/learnings.md (if it exists)
           before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
           the lead.")
 
-     NOTE: Only ONE conditional specialist per BUILD sub-phase. If an epic
-     requires multiple specialists (e.g., AI + UI), prioritize the dominant
-     domain and have the dev handle the secondary domain. The specialist
+     NOTE: Only ONE conditional specialist per BUILD sub-phase. If stories in
+     this sprint require multiple specialists (e.g., AI + UI), prioritize the
+     dominant domain and have the dev handle the secondary domain. The specialist
      review in VERIFY will catch issues.
 
      When a conditional specialist replaces dev-2 in BUILD:
@@ -176,22 +418,48 @@ A.1  SPAWN BUILD TEAMMATES
        dev-1's domain-relevant code
 
      TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh step=sprint_build
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=sprint_build
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 A.2  DISTRIBUTE CONTEXT
 
-     Send each build teammate:
-     - The architecture doc for this epic (prd-lifecycle/arch/epic-{id}.md)
-     - The data model doc for this epic (prd-lifecycle/data/epic-{id}.md)
-     - The functional spec for this epic (prd-lifecycle/specs/epic-{id}.md)
-     - The accumulated learnings (prd-lifecycle/learnings.md)
-     - Their assigned IMPL task(s)
+     Send each build teammate context for the stories they will implement.
+
+     MULTI-EPIC AWARENESS:
+
+     Stories in this sprint may come from different epics. Each developer needs
+     documentation for ALL epics that have stories assigned to them.
+
+     For each developer, identify their assigned stories from sprint-backlog.json,
+     extract the epic_id for each story, and send:
+     - Architecture docs: prd-lifecycle/{slug}/arch/epic-{id}.md for each relevant epic
+     - Data model docs: prd-lifecycle/{slug}/data/epic-{id}.md for each relevant epic
+     - Functional specs: prd-lifecycle/{slug}/specs/epic-{id}.md for each relevant epic
+     - The accumulated learnings: prd-lifecycle/{slug}/learnings.md
+     - Their assigned IMPL task(s) with story details from sprint-backlog.json
+
+     Example context message:
+
+     SendMessage(type="message", recipient="dev-1",
+       content="IMPLEMENTATION CONTEXT: You are assigned stories from epics E1, E3.
+       Read the following documentation:
+       - Architecture: prd-lifecycle/{slug}/arch/epic-1.md, prd-lifecycle/{slug}/arch/epic-3.md
+       - Data models: prd-lifecycle/{slug}/data/epic-1.md, prd-lifecycle/{slug}/data/epic-3.md
+       - Specs: prd-lifecycle/{slug}/specs/epic-1.md, prd-lifecycle/{slug}/specs/epic-3.md
+       - Learnings: prd-lifecycle/{slug}/learnings.md
+
+       Your assigned stories:
+       - {story-1-id}: {title} (epic E1, {SP} points) — tasks: {task list}
+       - {story-3-id}: {title} (epic E3, {SP} points) — tasks: {task list}
+
+       Begin implementation. Report when each story is complete.",
+       summary="Implementation assignment")
 
 A.3  DATA-HEAVY SEQUENCE (if applicable)
 
-     If data-heavy epic:
-     a) data-engineer implements DATA task first (schemas, migrations, seed data)
+     If any story in this sprint requires data layer work (check epic's has_data_layer
+     flag or story's tasks include data-layer tasks):
+     a) data-engineer implements DATA tasks first (schemas, migrations, seed data)
      b) data-engineer marks DATA task complete and reports files changed
      c) Lead unblocks IMPL tasks (TaskUpdate status)
      d) dev-1 and dev-2 begin IMPL tasks
@@ -199,7 +467,7 @@ A.3  DATA-HEAVY SEQUENCE (if applicable)
 A.4  IMPLEMENTATION
 
      Each developer implements their assigned stories:
-     a) Developer reads the spec and architecture docs
+     a) Developer reads the spec and architecture docs for their stories' epics
      b) Developer writes code, tests, and documentation comments
      c) Developer marks their IMPL task complete
      d) Developer reports: files created/changed, test results, any deviations
@@ -254,7 +522,7 @@ A.6  SHUTDOWN BUILD TEAMMATES
      turns). Track which teammates have confirmed shutdown.
 
      TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh step=sprint_build_done
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=sprint_build_done
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 ----------------------------------------------------------------------------
@@ -263,7 +531,7 @@ SUB-PHASE B: VERIFY + REVIEW (4-5 teammates, parallel)
 
 B.1  SPAWN REVIEW TEAMMATES
 
-     Spawn 4 reviewers (5 if data-heavy epic):
+     Spawn 4 reviewers (5 if data-heavy stories):
 
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="qa-engineer",
@@ -271,7 +539,7 @@ B.1  SPAWN REVIEW TEAMMATES
           uncovered paths, verify build integrity, and run type checking.
           Read your role instructions from
           ~/.claude/skills/prd-lifecycle/preambles/qa-engineer.md and prior
-          learnings from prd-lifecycle/learnings.md (if it exists) before
+          learnings from prd-lifecycle/{slug}/learnings.md (if it exists) before
           starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
@@ -285,7 +553,7 @@ B.1  SPAWN REVIEW TEAMMATES
           review auth flows, and assess dependency vulnerabilities.
           Read your role instructions from
           ~/.claude/skills/prd-lifecycle/preambles/security-reviewer.md and
-          prior learnings from prd-lifecycle/learnings.md (if it exists)
+          prior learnings from prd-lifecycle/{slug}/learnings.md (if it exists)
           before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
@@ -298,7 +566,7 @@ B.1  SPAWN REVIEW TEAMMATES
           N+1 query patterns, memory leaks, unnecessary re-renders, bundle size
           issues, and missing caching opportunities. Read your role instructions
           from ~/.claude/skills/prd-lifecycle/preambles/performance-reviewer.md
-          and prior learnings from prd-lifecycle/learnings.md (if it exists)
+          and prior learnings from prd-lifecycle/{slug}/learnings.md (if it exists)
           before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
@@ -312,21 +580,21 @@ B.1  SPAWN REVIEW TEAMMATES
           handling patterns, and documentation completeness. Read your role
           instructions from
           ~/.claude/skills/prd-lifecycle/preambles/code-reviewer.md and prior
-          learnings from prd-lifecycle/learnings.md (if it exists) before
+          learnings from prd-lifecycle/{slug}/learnings.md (if it exists) before
           starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
           the lead.")
 
-     If data-heavy epic:
+     If data-heavy stories (any story in sprint requires data layer):
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="data-engineer",
           prompt="You are the Data Engineer reviewing the data layer. Verify
           schema correctness, migration safety (up and down), index coverage,
           constraint enforcement, and data integrity. Read your role instructions
           from ~/.claude/skills/prd-lifecycle/preambles/data-engineer.md and
-          prior learnings from prd-lifecycle/learnings.md (if it exists)
+          prior learnings from prd-lifecycle/{slug}/learnings.md (if it exists)
           before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
@@ -334,59 +602,59 @@ B.1  SPAWN REVIEW TEAMMATES
           the lead.")
 
      TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh step=sprint_verify
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=sprint_verify
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
      CONDITIONAL SPECIALIST REVIEWERS:
 
      Conditional specialists review AFTER the core 4 reviewers complete and
-     are shut down (to respect max-5-concurrent). The lead runs them as a
-     second verification wave if applicable to this epic.
+     are shut down (to respect max-10-concurrent). The lead runs them as a
+     second verification wave if applicable to stories in this sprint.
 
-     If has_ai_ml AND this epic has AI/ML components:
+     If has_ai_ml AND stories in this sprint have AI/ML components:
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="applied-ai-engineer",
           prompt="You are the Applied AI Engineer reviewing the ML components.
           Verify model integration, inference performance, fallback behavior,
           and responsible AI compliance. Read your role instructions from
           ~/.claude/skills/prd-lifecycle/preambles/applied-ai-engineer.md and
-          prior learnings from prd-lifecycle/learnings.md (if it exists)
+          prior learnings from prd-lifecycle/{slug}/learnings.md (if it exists)
           before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
           the lead.")
-     → Writes to: sprints/sprint-{n}/reports/ai-review.md
+     → Writes to: prd-lifecycle/{slug}/sprints/sprint-{n}/reports/ai-review.md
 
-     If has_analytics AND this epic has analytics components:
+     If has_analytics AND stories in this sprint have analytics components:
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="data-scientist",
           prompt="You are the Data Scientist reviewing analytics components.
           Verify event tracking, metrics accuracy, statistical validity,
           and data privacy compliance. Read your role instructions from
           ~/.claude/skills/prd-lifecycle/preambles/data-scientist.md and
-          prior learnings from prd-lifecycle/learnings.md (if it exists)
+          prior learnings from prd-lifecycle/{slug}/learnings.md (if it exists)
           before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
           the lead.")
-     → Writes to: sprints/sprint-{n}/reports/analytics-review.md
+     → Writes to: prd-lifecycle/{slug}/sprints/sprint-{n}/reports/analytics-review.md
 
-     If has_frontend_ui AND this epic has UI components:
+     If has_frontend_ui AND stories in this sprint have UI components:
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="ux-ui-designer",
           prompt="You are the UX/UI Product Designer reviewing the interface.
           Verify design compliance, accessibility (WCAG 2.1 AA), responsive
           behavior, and UI state coverage. Read your role instructions from
           ~/.claude/skills/prd-lifecycle/preambles/ux-ui-designer.md and
-          prior learnings from prd-lifecycle/learnings.md (if it exists)
+          prior learnings from prd-lifecycle/{slug}/learnings.md (if it exists)
           before starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
           the lead.")
-     → Writes to: sprints/sprint-{n}/reports/ux-review.md
+     → Writes to: prd-lifecycle/{slug}/sprints/sprint-{n}/reports/ux-review.md
 
      These conditional reviews follow the same finding severity protocol
      (CRITICAL/HIGH/MEDIUM/LOW) and the same fix cycle limits (max 3) as
@@ -394,16 +662,26 @@ B.1  SPAWN REVIEW TEAMMATES
 
 B.2  DISTRIBUTE REVIEW CONTEXT
 
-     Send each reviewer:
+     Send each reviewer context for ALL epics represented in this sprint.
+
+     MULTI-EPIC AWARENESS:
+
+     Stories in this sprint may come from different epics. Reviewers need
+     documentation for ALL epics that have stories in this sprint so they can
+     verify implementation against the correct architecture and specs.
+
+     Identify all unique epic_ids from sprint-backlog.json. For each reviewer, send:
      - The list of all files changed in this sprint
-     - The architecture doc, data model doc, and spec for this epic
+     - Architecture docs for ALL epics in this sprint: prd-lifecycle/{slug}/arch/epic-{id}.md
+     - Data model docs for ALL epics in this sprint: prd-lifecycle/{slug}/data/epic-{id}.md
+     - Functional specs for ALL epics in this sprint: prd-lifecycle/{slug}/specs/epic-{id}.md
      - Their assigned review task
      - The report file they should write to:
-       * qa-engineer → sprints/sprint-{n}/reports/qa.md
-       * security-reviewer → sprints/sprint-{n}/reports/security.md
-       * performance-reviewer → sprints/sprint-{n}/reports/performance.md
-       * code-reviewer → sprints/sprint-{n}/reports/code-review.md
-       * data-engineer → sprints/sprint-{n}/reports/data-review.md
+       * qa-engineer → prd-lifecycle/{slug}/sprints/sprint-{n}/reports/qa.md
+       * security-reviewer → prd-lifecycle/{slug}/sprints/sprint-{n}/reports/security.md
+       * performance-reviewer → prd-lifecycle/{slug}/sprints/sprint-{n}/reports/performance.md
+       * code-reviewer → prd-lifecycle/{slug}/sprints/sprint-{n}/reports/code-review.md
+       * data-engineer → prd-lifecycle/{slug}/sprints/sprint-{n}/reports/data-review.md
 
      Include this instruction in every review context message:
      "CONTEXT MANAGEMENT: Do NOT read all files in a single turn.
@@ -528,7 +806,7 @@ B.6  SHUTDOWN REVIEW TEAMMATES (except any needed for arch review)
      agent via Task(team_name=...). See C.1.
 
      TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh step=sprint_verify_done
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=sprint_verify_done
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 ----------------------------------------------------------------------------
@@ -546,7 +824,7 @@ C.1  SPAWN ARCHITECT (if not already present)
           Verify the implementation matches the architecture documents. Read
           your role instructions from
           ~/.claude/skills/prd-lifecycle/preambles/architect.md and prior
-          learnings from prd-lifecycle/learnings.md (if it exists) before
+          learnings from prd-lifecycle/{slug}/learnings.md (if it exists) before
           starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
@@ -554,21 +832,28 @@ C.1  SPAWN ARCHITECT (if not already present)
           the lead.")
 
      TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh step=sprint_arch_review
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=sprint_arch_review
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 C.2  ARCHITECTURE COMPLIANCE CHECK
 
-     Send the architect:
-     - Architecture doc for this epic (prd-lifecycle/arch/epic-{id}.md)
+     Send the architect context for ALL epics in this sprint:
+
+     MULTI-EPIC AWARENESS:
+
+     Stories in this sprint may come from different epics. The architect needs
+     to verify implementation against architecture for ALL epics represented.
+
+     Identify all unique epic_ids from sprint-backlog.json. Send to architect:
+     - Architecture docs for ALL epics in this sprint: prd-lifecycle/{slug}/arch/epic-{id}.md
      - List of all files created/changed in this sprint
      - All review reports from Sub-Phase B
 
      "ARCHITECTURE REVIEW: Verify that the implementation matches the
-     architecture document. Check: component boundaries respected, interfaces
-     match spec, integration points correct, error handling strategy followed,
-     no architectural drift. Write your report to:
-     sprints/sprint-{n}/reports/arch-review.md"
+     architecture documents for epics {epic-id-list}. Check: component
+     boundaries respected, interfaces match spec, integration points correct,
+     error handling strategy followed, no architectural drift. Write your
+     report to: prd-lifecycle/{slug}/sprints/sprint-{n}/reports/arch-review.md"
 
 C.3  HANDLE FINDINGS
 
@@ -582,7 +867,7 @@ C.4  GATE: ARCHITECTURE REVIEW PASS
      arch-review.md verdict must be PASS or PASS_WITH_WARNINGS.
 
      TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh step=sprint_arch_done
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=sprint_arch_done
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 ----------------------------------------------------------------------------
@@ -597,7 +882,7 @@ R.1  GATHER ALL CURRENT TEAMMATES
 R.2  PRESENT SUMMARY
 
      Send to architect via SendMessage:
-     "SPRINT REVIEW: Sprint {n} for epic {id} ({title}) is complete.
+     "SPRINT REVIEW: Sprint {n} for stories from epics {epic-id-list} is complete.
      Summary of results:
      - QA: {verdict} ({N} findings)
      - Security: {verdict} ({N} findings)
@@ -607,7 +892,7 @@ R.2  PRESENT SUMMARY
      - Architecture: {verdict}
      - Tests: {pass/fail count}
      - Build: {pass/fail}
-     What is your overall confidence level? Any concerns for future epics?
+     What is your overall confidence level? Any concerns for future sprints?
      RESPONSE FORMAT: Respond via SendMessage with your confidence assessment
      and any concerns inline in the message content."
 
@@ -623,15 +908,15 @@ R.3  GO / NO-GO DECISION
 
 R.4  WRITE SPRINT REVIEW
 
-     Write to prd-lifecycle/sprints/sprint-{n}/review.md:
-     - Date, epic covered, decision (GO/NO-GO)
+     Write to prd-lifecycle/{slug}/sprints/sprint-{n}/review.md:
+     - Date, stories covered (with epic references), decision (GO/NO-GO)
      - Summary of each review area
      - Key findings and resolutions
      - Deferred items (if any)
      - Confidence assessment
 
      TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh step=sprint_review_done
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=sprint_review_done
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 ----------------------------------------------------------------------------
@@ -652,22 +937,22 @@ T.1  ASK TEAMMATES FOR RETROSPECTIVE INPUT
 
 T.2  COMPILE RETRO
 
-     Write all entries to prd-lifecycle/sprints/sprint-{n}/retro.md using the
+     Write all entries to prd-lifecycle/{slug}/sprints/sprint-{n}/retro.md using the
      format the collect-learnings.sh script expects:
      ## [strategy] {title}: {description}
      ## [pitfall] {title}: {description}
 
 T.3  AGGREGATE LEARNINGS
 
-     Run: bash ~/.claude/skills/prd-lifecycle/scripts/collect-learnings.sh
+     Run: bash ~/.claude/skills/prd-lifecycle/scripts/collect-learnings.sh . {slug}
 
-     This updates prd-lifecycle/learnings.md with entries from all sprint retros.
+     This updates prd-lifecycle/{slug}/learnings.md with entries from all sprint retros.
 
      After collect-learnings.sh completes, if learnings.md exceeds 150 lines,
      spawn a compaction agent:
 
      Task(subagent_type="general-purpose", model="sonnet",
-       prompt="Compact prd-lifecycle/learnings.md:
+       prompt="Compact prd-lifecycle/{slug}/learnings.md:
        1. Read learnings.md and both ACE playbooks (for cross-reference)
        2. Remove duplicate entries (same lesson, different wording)
        3. Merge related entries into consolidated entries grouped by theme
@@ -676,43 +961,135 @@ T.3  AGGREGATE LEARNINGS
        6. Preserve entries with helpful >= 3 verbatim
        7. Write the compacted result back to learnings.md")
 
-T.4  UPDATE STATE
+T.4  RETRO-TRANSITION: 6-STEP PROTOCOL FOR NEXT PHASE ROUTING
 
-     TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh add-completed=E{id} step=sprint_retro_done
-     Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
+     This is a complex transition with multiple decision points. Follow all
+     6 steps in sequence.
 
-T.5  SHUTDOWN ALL SPRINT TEAMMATES
+T.4a DETERMINE SPRINT COMPLETENESS
 
-     Send shutdown requests to all remaining teammates (architect and any others).
-     Wait for confirmations (responses arrive as new conversation turns).
-     Track which teammates have confirmed shutdown.
+     Lead performs 4-step protocol to classify sprint results:
+
+     1. Read prd-lifecycle/{slug}/sprints/sprint-{n}/sprint-backlog.json
+     2. For each story, check if ALL tasks are done:
+        - If ALL tasks done → change story status to "done" in backlog.json
+        - If NOT all done → change story status to "spillover" in backlog.json
+          and record remaining_points (story_points - completed_points)
+     3. Compute sprint metrics:
+        PLANNED_SP = sum of all story_points in sprint-backlog.json
+        COMPLETED_SP = sum of story_points for stories where ALL tasks done
+     4. Update prd-lifecycle/{slug}/backlog.json with final statuses
+
+T.4b CHECK EPIC COMPLETION
+
+     Lead runs epic status check:
+     bash ~/.claude/skills/prd-lifecycle/scripts/check-epic-status.sh . {slug}
+
+     This script outputs epic IDs that are 100% done (all stories in status="done").
+     Lead updates prd-lifecycle/{slug}/epics.json: for each completed epic, set
+     status="completed" externally (not via brain — brain doesn't track epics).
+
+T.4c BRAIN TRANSITION (NO PAYLOAD)
+
+     Transition the brain state WITHOUT payload:
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=sprint_retro_done
+
+     The brain transitions to retro_done state. This enables 3-way routing:
+     START_REFINEMENT, START_PLANNING, or START_RELEASE.
+
+T.4d RECORD VELOCITY
+
+     Lead records sprint velocity:
+     bash ~/.claude/skills/prd-lifecycle/scripts/record-velocity.sh . {slug} {sprint} {PLANNED_SP} {COMPLETED_SP}
+
+     Template reference: See ~/.claude/skills/prd-lifecycle/templates/velocity.json
+     for the velocity tracking format.
+
+T.4e DECIDE NEXT PHASE (scripts advise, Lead decides, brain validates)
+
+     Lead uses scripts for advisory input but makes the final decision:
+
+     REMAINING=$(jq '[.stories[] | select(.status != "done")] | length' prd-lifecycle/{slug}/backlog.json)
+
+     if [ "$REMAINING" -eq 0 ]; then
+       # All stories done → release
+       bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=release_started product_backlog_count=0
+     else
+       # Stories remain → check if refinement needed
+       CAPACITY=$(bash ~/.claude/skills/prd-lifecycle/scripts/calculate-capacity.sh . {slug} | cut -d= -f2)
+       RESULT=$(bash ~/.claude/skills/prd-lifecycle/scripts/check-refinement.sh . {slug} $CAPACITY)
+       REC=$(echo "$RESULT" | cut -d'|' -f1)
+
+       if [[ "$REC" == refinement_needed* ]]; then
+         bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=start_refinement product_backlog_count=$REMAINING
+       else
+         bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=start_planning product_backlog_count=$REMAINING
+       fi
+     fi
+
+     LEAD CAN OVERRIDE: Scripts provide advisory recommendations. If
+     check-refinement.sh says "ready for planning" but Lead knows stories need
+     decomposition or re-estimation, send START_REFINEMENT anyway. Lead has
+     final authority.
+
+T.4f FOLLOW BRAIN OUTPUT PROTOCOL
+
+     After the brain transition in T.4e, read the brain output:
+     - LOAD: file path to read (if any)
+     - RESUME AT: section to jump to
+
+     Follow the protocol exactly: load the file, jump to the resume section.
+
+T.5  TEAMMATE LIFECYCLE: SHUTDOWN SPRINT TEAMMATES
+
+     Before git commit, manage teammate lifecycle:
+
+     Shutdown architect and any remaining sprint teammates:
+     SendMessage(type="shutdown_request", recipient="architect", content="Sprint complete.")
+
+     Wait for shutdown confirmation.
+
+     The Scrum Master stays alive (long-lived, shuts down before release).
+     The Product Manager should already be shut down (after Sprint Review in R.4).
 
 T.6  GIT COMMIT SPRINT WORK
 
      After all teammates are shut down, commit ALL changes from this sprint.
      This creates an atomic rollback point for the sprint's work.
 
-     Run:
+     Commit format depends on epic coverage:
+
+     MONO-EPIC SPRINT (all stories from one epic):
      git add -A && git commit -m "feat(sprint-{n}): implement epic E{id} — {epic title}"
+
+     MULTI-EPIC SPRINT (stories from multiple epics):
+     git add -A && git commit -m "feat(sprint-{n}): implement stories {S-IDs} from epics {E-IDs}"
+
+     Example multi-epic:
+     git add -A && git commit -m "feat(sprint-3): implement stories S-5,S-7,S-9 from epics E1,E3"
 
      Where:
      - {n} is the current sprint number
-     - {id} is the epic ID (e.g., E1, E2)
-     - {epic title} is the epic's title from epics.json
+     - {S-IDs} is a comma-separated list of story IDs completed in this sprint
+     - {E-IDs} is a comma-separated list of epic IDs that had stories in this sprint
+     - {epic title} is the epic's title from epics.json (for mono-epic sprints)
 
      NOTE: Use git add -A to capture all changes (code, reports, retro, state).
      If the commit fails (e.g., no changes), log and continue — do not block.
 
-T.7  ADVANCE TO NEXT EPIC (DO NOT STOP)
+----------------------------------------------------------------------------
+CONTINUOUS CYCLE
+----------------------------------------------------------------------------
 
-     Read epics.json to determine the next epic in execution_order.
-     The brain output from T.4 handles routing:
-     - If epics remain: LOAD shows phase2-sprints.md, RESUME AT shows SPRINT SETUP (S.1)
-     - If all epics complete: RESUME AT shows PHASE 3: RELEASE in SKILL.md
-     Follow the PROTOCOL in the brain output.
+Follow the brain output from T.4f. The brain handles routing based on
+product_backlog_count and available refined stories.
 
-     CRITICAL: Do NOT pause here to ask the user if they want to continue.
-     Do NOT present sprint results and wait. The lifecycle is a continuous
-     process — immediately proceed to the next sprint or to Phase 3.
-     The user will see the final report at F.5 when everything is done.
+Possible routes:
+- REFINEMENT (R.1): If stories need decomposition/estimation
+- PLANNING (P.1): If enough refined stories are ready
+- RELEASE (Phase 3): If all stories are done
+
+CRITICAL: Do NOT pause here to ask the user if they want to continue.
+Do NOT present sprint results and wait. The lifecycle is a continuous
+process — immediately proceed to the next cycle or to Phase 3.
+The user will see the final report at F.5 when everything is done.
