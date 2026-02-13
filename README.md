@@ -43,10 +43,10 @@ A [Claude Code](https://claude.ai/download) skill that takes a PRD and orchestra
 ## How It Works
 
 ```
-Phase 1: SPECIFICATION ─── all voices in refinement ──────────────
-  Ceremony: Backlog Refinement (5 teammates challenge every story)
-  Ceremony: Epic Decomposition (architect + data-engineer lead)
-  Ceremony: Architecture + Data Model + Spec Validation
+Phase 1: SPECIFICATION ─── top-down decomposition ────────────────
+  Ceremony 1: Epic Decomposition (architect + data-engineer lead)
+  Ceremony 2: Story Refinement per epic (5 teammates challenge every story)
+  Ceremony 3: Architecture + Data Model + Spec Validation
   Gate: all approved → Phase 2
 
 Phase 2: EXECUTION SPRINTS ─── per epic, full cycle ──────────────
@@ -215,10 +215,11 @@ ln -s ~/prd-lifecycle ~/.claude/skills/prd-lifecycle
 
 The skill will:
 1. Analyze the PRD and detect domains (AI/ML, analytics, frontend)
-2. Run Backlog Refinement with 5 domain experts challenging every story
-3. Decompose into epics, design architecture + data model, validate specs
-4. Execute sprints with pair programming, QA, and parallel reviews
-5. Produce release artifacts: docs, changelog, CI/CD, PR
+2. Decompose the PRD into value-based epics (Ceremony 1)
+3. Refine stories per epic with 5 domain experts (Ceremony 2)
+4. Design architecture + data model, validate specs (Ceremony 3)
+5. Execute sprints with pair programming, QA, and parallel reviews
+6. Produce release artifacts: docs, changelog, CI/CD, PR
 
 ## Project Artifacts
 
@@ -301,7 +302,7 @@ The brain engine ships pre-built (`dist/brain.cjs`), so users don't need a build
 ```bash
 cd ~/prd-lifecycle/scripts/brain
 npm install
-npm test              # 130 tests (vitest)
+npm test              # 198 tests (vitest)
 npm run build         # rebuild dist/brain.cjs
 ```
 
