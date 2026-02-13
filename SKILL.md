@@ -6,8 +6,8 @@ description: >
   Covers: epic decomposition, story refinement (per epic), architecture, data modeling,
   pair programming, QA, security/performance/code/data/architecture reviews,
   sprint reviews, documentation, and release engineering.
-  Conditional specialists (Applied AI Engineer, Data Scientist, UX/UI Designer)
-  are activated when the PRD domain requires them.
+  Conditional specialists (Applied AI Engineer, Data Scientist, UX/UI Designer,
+  Prompt Engineer) are activated when the PRD domain requires them.
 argument-hint: <prd-file-path | prd-url | "inline PRD text">
 disable-model-invocation: true
 ---
@@ -335,24 +335,23 @@ EXECUTION MODEL:
 
      | Role | Flag | Phase 1 | Phase 2 BUILD | Phase 2 VERIFY |
      |------|------|---------|---------------|----------------|
-     | applied-ai-engineer | has_ai_ml | Swaps into slot 5 for Ceremonies 1-2 | Joins BUILD for AI/ML epics | AI/ML review |
-     | data-scientist | has_analytics | Swaps into slot 5 for Ceremonies 1-2 | Joins BUILD for analytics epics | Analytics review |
-     | ux-ui-designer | has_frontend_ui | Swaps into slot 5 for Ceremonies 1-2 | Joins BUILD for UI epics | UX review |
+     | applied-ai-engineer | has_ai_ml | Joins all 3 Ceremonies | Joins BUILD for AI/ML epics | AI/ML review |
+     | data-scientist | has_analytics | Joins all 3 Ceremonies | Joins BUILD for analytics epics | Analytics review |
+     | ux-ui-designer | has_frontend_ui | Joins all 3 Ceremonies | Joins BUILD for UI epics | UX review |
+     | prompt-engineer | has_ai_ml | Joins all 3 Ceremonies | Joins BUILD for LLM epics | Prompt review |
 
-     SLOT MANAGEMENT: The max-5-concurrent rule still applies. When conditional
-     specialists participate in Phase 1, they temporarily replace tech-writer
-     in slot 5 during Ceremonies 1-2. Tech-writer returns for Ceremony 3
-     (spec writing). If multiple conditional specialists are needed in Phase 1,
-     rotate them through slot 5 sequentially (e.g., AI engineer for Ceremony 1
-     epic review, then UX designer for Ceremony 2 story review, then tech-writer
-     for Ceremony 3).
+     SLOT MANAGEMENT: With max 10 concurrent teammates, all conditional
+     specialists can be present simultaneously alongside the core 5.
+     No rotation needed — spawn all applicable specialists at Phase 1 start
+     and keep them through Ceremony 3.
 
 0.7  ANNOUNCE TO USER
 
      Inform the user that the PRD lifecycle has been initialized:
      "PRD lifecycle initialized for **{title}**. Starting Phase 1: Specification
-     with 5 specialist teammates. This phase includes Epic Decomposition, Story
-     Refinement (per epic), and Architecture/Data Model/Spec Validation."
+     with up to 9 specialist teammates (5 core + conditional). This phase includes
+     Epic Decomposition, Story Refinement (per epic), and Architecture/Data Model/
+     Spec Validation."
 
      If any conditional specialists are activated, also announce:
      "Domain analysis detected: {list active domains}. Conditional specialists
@@ -363,11 +362,12 @@ EXECUTION MODEL:
 PHASE 1: SPECIFICATION
 ============================================================================
 
-Spawn 5 specialist teammates. Each teammate receives a role-specific preamble
-loaded from ~/.claude/skills/prd-lifecycle/preambles/{role}.md (if the file
-exists; if it does not exist, provide a brief role description inline).
+Spawn the core 5 specialist teammates plus any conditional specialists.
+Each teammate receives a role-specific preamble loaded from
+~/.claude/skills/prd-lifecycle/preambles/{role}.md (if the file exists;
+if it does not exist, provide a brief role description inline).
 
-SPAWN ALL 5 TEAMMATES:
+SPAWN CORE 5 TEAMMATES:
 
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="architect",
@@ -419,47 +419,21 @@ SPAWN ALL 5 TEAMMATES:
        summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
        the lead.")
 
-Wait for all 5 teammates to confirm they are ready. Teammate responses
+Wait for all core teammates to confirm they are ready. Teammate responses
 arrive as new conversation turns via SendMessage. Track which teammates
 have responded. If a teammate hasn't responded after 3 minutes, send a
-follow-up message. Continue only when all 5 have confirmed readiness.
+follow-up message. Continue only when all core teammates have confirmed.
 
-TRANSITION:
-bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=phase1_spawned
-Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
+SPAWN CONDITIONAL SPECIALISTS (Phase 1):
 
-CONDITIONAL SPECIALIST ROTATION (Phase 1):
-
-If any domain flags were set in Step 0.6, conditional specialists participate
-in Ceremonies 1 and 2 by temporarily swapping into slot 5 (tech-writer's slot).
-Tech-writer returns for Ceremony 3 (spec authoring).
-
-Rotation protocol:
-a) If ONE conditional specialist: shut down tech-writer before Ceremony 1,
-   spawn the specialist. After Ceremony 2, shut down specialist, re-spawn
-   tech-writer for Ceremony 3.
-
-b) If TWO conditional specialists: rotate through Ceremony 1 (specialist A
-   reviews epic proposals, shuts down; specialist B reviews epic proposals,
-   shuts down). For Ceremony 2, spawn the most relevant specialist for
-   per-epic story review. Re-spawn tech-writer for Ceremony 3.
-
-c) If THREE conditional specialists: each reviews epic proposals in
-   Ceremony 1 sequentially via slot 5 rotation. For Ceremony 2, spawn the
-   specialist whose domain has the most epics for story review.
-   Re-spawn tech-writer for Ceremony 3.
-
-d) If NO conditional specialists: keep the original 5 team as-is.
-
-In all rotation cases, the lead collects each specialist's feedback and
-includes it in the synthesis step, even after the specialist has been
-shut down for the rotation. Their domain perspective is preserved in the
-epic rationale (Ceremony 1) and story domain_notes (Ceremony 2).
+If any domain flags were set in Step 0.6, spawn conditional specialists
+ALONGSIDE the core 5 (no rotation needed — max 10 concurrent allows it).
+All conditional specialists participate in ALL 3 Ceremonies.
 
 Spawn conditional specialists with their preamble from
 ~/.claude/skills/prd-lifecycle/preambles/{role}.md:
 
-  applied-ai-engineer:
+  If has_ai_ml:
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="applied-ai-engineer",
        prompt="You are the Applied AI Engineer. Read your full role instructions
@@ -470,27 +444,45 @@ Spawn conditional specialists with their preamble from
        summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
        the lead.")
 
-  data-scientist:
+  If has_ai_ml:
   Task(subagent_type="general-purpose", model="opus",
-       team_name="prd-{slug}", name="data-scientist",
-       prompt="You are the Data Scientist. Read your full role instructions
-       from ~/.claude/skills/prd-lifecycle/preambles/data-scientist.md
+       team_name="prd-{slug}", name="prompt-engineer",
+       prompt="You are the Prompt Engineer. Read your full role instructions
+       from ~/.claude/skills/prd-lifecycle/preambles/prompt-engineer.md
        before doing anything else.
        RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
        SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
        summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
        the lead.")
 
-  ux-ui-designer:
+  If has_analytics:
   Task(subagent_type="general-purpose", model="opus",
-       team_name="prd-{slug}", name="ux-ui-designer",
-       prompt="You are the UX/UI Product Designer. Read your full role
-       instructions from ~/.claude/skills/prd-lifecycle/preambles/ux-ui-designer.md
+       team_name="prd-{slug}", name="data-scientist",
+       prompt="You are the Data Scientist & Analyst. Read your full role
+       instructions from ~/.claude/skills/prd-lifecycle/preambles/data-scientist.md
        before doing anything else.
        RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
        SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
        summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
        the lead.")
+
+  If has_frontend_ui:
+  Task(subagent_type="general-purpose", model="opus",
+       team_name="prd-{slug}", name="ux-ui-designer",
+       prompt="You are the UX/UI Product Designer & Design Strategist. Read
+       your full role instructions from
+       ~/.claude/skills/prd-lifecycle/preambles/ux-ui-designer.md before doing
+       anything else.
+       RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+       SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+       summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+       the lead.")
+
+Wait for all conditional specialists to confirm readiness.
+
+TRANSITION:
+bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=phase1_spawned
+Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 ----------------------------------------------------------------------------
 CEREMONY 1: EPIC DECOMPOSITION
@@ -532,10 +524,10 @@ in Ceremony 2.
 
 1.2  CHALLENGE ROUND
 
-     Send the architect+data-engineer proposals to the other 3 teammates:
+     Send the architect+data-engineer proposals to all other teammates:
 
-     SendMessage to qa-engineer, security-reviewer, tech-writer (or
-     conditional specialist in slot 5):
+     SendMessage to qa-engineer, security-reviewer, tech-writer (and any
+     conditional specialists):
      "EPIC REVIEW: The architect and data engineer propose these epic groupings.
      Challenge from your perspective: Are the boundaries correct? Does each epic
      map to clear PRD sections? Are there missing cross-cutting concerns? Would
@@ -562,8 +554,8 @@ in Ceremony 2.
 
 1.4  ITERATE UNTIL CONSENSUS
 
-     Send revised proposal to all 5 for final approval via SendMessage.
-     Wait for all 5 responses via SendMessage before evaluating consensus.
+     Send revised proposal to all teammates for final approval via SendMessage.
+     Wait for all responses via SendMessage before evaluating consensus.
      Maximum 3 iterations. Lead makes binding decisions on remaining disputes
      after 3 rounds.
 
@@ -620,8 +612,7 @@ requirements via its epic's prd_sections.
 
 2.2  DISTRIBUTE STORIES TO ALL TEAMMATES
 
-     Send the stories grouped by epic to each of the 5 teammates (or 4 +
-     conditional specialist in slot 5):
+     Send the stories grouped by epic to all teammates (core + conditional):
 
      SendMessage(type="message", recipient="architect",
        content="STORY REFINEMENT: Please review these user stories grouped by
@@ -637,15 +628,15 @@ requirements via its epic's prd_sections.
        summary="Review stories per epic from architecture perspective")
 
      Repeat for: data-engineer, qa-engineer, security-reviewer, tech-writer
-     (or conditional specialist in slot 5) — each with their domain-specific
+     (and any conditional specialists) — each with their domain-specific
      review prompt.
 
 2.3  COLLECT FEEDBACK
 
-     Wait for all 5 teammates to respond. Teammate responses arrive as new
+     Wait for all teammates to respond. Teammate responses arrive as new
      conversation turns via SendMessage. Process each response as it arrives.
      Track which teammates have responded. If a teammate hasn't responded
-     after 5 minutes, send a follow-up message. Continue only when all 5
+     after 5 minutes, send a follow-up message. Continue only when all
      expected responses have been received.
 
 2.4  SYNTHESIZE AND RESOLVE CONFLICTS
@@ -684,7 +675,7 @@ requirements via its epic's prd_sections.
 
 2.5  SEND REVISED STORIES FOR VALIDATION
 
-     Send the revised story list (grouped by epic) back to all 5 teammates:
+     Send the revised story list (grouped by epic) back to all teammates:
 
      SendMessage(type="message", recipient="{each teammate}",
        content="REFINEMENT VALIDATION: Here are the revised stories grouped by
@@ -695,7 +686,7 @@ requirements via its epic's prd_sections.
        remaining concerns inline in the message content.",
        summary="Validate revised stories per epic")
 
-     Wait for all 5 teammates to respond via SendMessage with their validation.
+     Wait for all teammates to respond via SendMessage with their validation.
      Do NOT proceed based on idle status. Track which teammates have responded.
      Send follow-up after 5 minutes if missing.
 
@@ -710,7 +701,7 @@ requirements via its epic's prd_sections.
 
 2.7  GATE: PERSIST REFINED STORIES
 
-     Once all 5 teammates approve (or lead has made binding decisions):
+     Once all teammates approve (or lead has made binding decisions):
      - Update prd-lifecycle/{slug}/prd.json: set the "stories" array to the refined list
      - Each story must have: id, title, description, acceptance_criteria (array),
        priority, epic_id, domain_notes (object with keys: arch, data, qa, security, spec)
@@ -727,7 +718,7 @@ CEREMONY 3: ARCHITECTURE + DATA MODEL + SPEC VALIDATION
 ----------------------------------------------------------------------------
 
 Goal: Produce per-epic architecture docs, data model docs, and functional specs,
-each validated by all 5 specialists.
+each validated by all specialists.
 
 3.1  PARALLEL AUTHORING (3 tracks simultaneously)
 
@@ -764,9 +755,9 @@ each validated by all 5 specialists.
      If a teammate hasn't responded after 5 minutes, send a follow-up message.
      Continue only when all 3 expected responses have been received.
 
-3.2  ARCHITECTURE REVIEW (all 5 participate)
+3.2  ARCHITECTURE REVIEW (all teammates participate)
 
-     Send all architecture docs to all 5 teammates:
+     Send all architecture docs to all teammates:
      "ARCHITECTURE REVIEW: Review the architecture documents for all epics.
      Evaluate: completeness, consistency across epics, feasibility, security
      implications, data access patterns, testability, and documentation clarity.
@@ -779,9 +770,9 @@ each validated by all 5 specialists.
      5 minutes if missing). Have architect revise. Re-send for validation.
      Iterate until consensus (max 3 rounds). Lead makes binding decisions after.
 
-3.3  DATA MODEL REVIEW (all 5 participate)
+3.3  DATA MODEL REVIEW (all teammates participate)
 
-     Send all data model docs to all 5 teammates:
+     Send all data model docs to all teammates:
      "DATA MODEL REVIEW: Review the data model documents for all epics.
      Evaluate: schema correctness, normalization level, migration safety,
      index coverage, constraint completeness, cross-epic data consistency,
@@ -794,9 +785,9 @@ each validated by all 5 specialists.
      SendMessage — track which teammates have responded, send follow-up after
      5 minutes if missing). Have data-engineer revise. Iterate until consensus.
 
-3.4  SPEC VALIDATION (all 5 participate)
+3.4  SPEC VALIDATION (all teammates participate)
 
-     Send all spec docs to all 5 teammates:
+     Send all spec docs to all teammates:
      "SPEC VALIDATION: Review the functional specifications for all epics.
      Evaluate: completeness against acceptance criteria, API consistency,
      error handling coverage, user flow clarity, and alignment with
@@ -826,10 +817,12 @@ each validated by all 5 specialists.
 
 3.6  SHUTDOWN PHASE 1 TEAMMATES
 
-     Send shutdown requests to all 5:
+     Send shutdown requests to all Phase 1 teammates:
      SendMessage(type="shutdown_request", recipient="architect",
        content="Phase 1 Specification complete. Shutting down.")
-     Repeat for: data-engineer, qa-engineer, security-reviewer, tech-writer.
+     Repeat for: data-engineer, qa-engineer, security-reviewer, tech-writer,
+     and any active conditional specialists (applied-ai-engineer,
+     data-scientist, ux-ui-designer, prompt-engineer).
 
      Wait for all shutdown confirmations (responses arrive as new conversation
      turns). Track which teammates have confirmed shutdown.
@@ -860,7 +853,7 @@ R.1  TRANSITION TO RELEASE
      bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=release_started product_backlog_count=0
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
-R.2  SPAWN RELEASE TEAMMATES (2)
+R.2  SPAWN RELEASE TEAMMATES (3)
 
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="tech-writer",
@@ -876,6 +869,19 @@ R.2  SPAWN RELEASE TEAMMATES (2)
           team_name="prd-{slug}", name="release-engineer",
           prompt="You are the Release Engineer. Handle git hygiene, version
           management, CI/CD configuration, deployment setup, and PR creation.
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
+
+     Task(subagent_type="general-purpose", model="opus",
+          team_name="prd-{slug}", name="product-manager",
+          prompt="You are the Product Manager. Validate that the release
+          delivers on the product hypothesis, define release messaging, and
+          verify that user-facing communication accurately represents the
+          shipped functionality. Read your role instructions from
+          ~/.claude/skills/prd-lifecycle/preambles/product-manager.md before
+          starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
           SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
@@ -899,6 +905,12 @@ R.3  DISTRIBUTE CONTEXT (SCOPED PER ROLE)
      - Accumulated learnings path (prd-lifecycle/{slug}/learnings.md)
      - The original PRD (prd-lifecycle/{slug}/prd.json)
      - No architecture, spec, or data model docs (not needed for release)
+
+     Product-manager receives (product-focused):
+     - The original PRD (prd-lifecycle/{slug}/prd.json)
+     - All product-review reports (prd-lifecycle/{slug}/sprints/sprint-*/reports/product-review.md)
+     - Sprint review summaries (prd-lifecycle/{slug}/sprints/sprint-*/review.md)
+     - Instruction: "Validate release messaging against PRD hypothesis and success criteria"
 
      IMPORTANT: Send file PATHS only, not contents. Let each teammate
      read files themselves to manage their own context budget.
@@ -928,6 +940,21 @@ R.5  RELEASE ENGINEER DELIVERABLES
      Write deployment/CI configs to the project root. Write the migration plan
      to prd-lifecycle/{slug}/release/MIGRATION.md."
 
+R.5b PRODUCT MANAGER DELIVERABLES
+
+     Send to product-manager:
+     "RELEASE VALIDATION: Review all release documentation produced by
+     tech-writer (prd-lifecycle/{slug}/release/). Verify:
+     1. RELEASE-NOTES.md accurately represents shipped functionality
+     2. README.md messaging aligns with the product hypothesis from the PRD
+     3. No features are over-promised or under-represented
+     4. Success criteria from the PRD are addressed in the release narrative
+     Write your assessment to prd-lifecycle/{slug}/release/PRODUCT-SIGNOFF.md
+     with verdict: APPROVE or REQUEST_CHANGES."
+
+     Wait for PM's SendMessage response. If REQUEST_CHANGES, relay feedback
+     to tech-writer for revision. Maximum 2 revision cycles.
+
 R.6  GATE: RELEASE ARTIFACTS COMPLETE
 
      Verify all deliverables exist:
@@ -937,6 +964,7 @@ R.6  GATE: RELEASE ARTIFACTS COMPLETE
      - prd-lifecycle/{slug}/release/CHANGELOG.md
      - prd-lifecycle/{slug}/release/RELEASE-NOTES.md
      - prd-lifecycle/{slug}/release/MIGRATION.md (if data changes exist)
+     - prd-lifecycle/{slug}/release/PRODUCT-SIGNOFF.md (PM approval)
      - CI/CD configuration file in project root
      - PR created (or ready to create)
 
@@ -944,6 +972,7 @@ R.7  SHUTDOWN RELEASE TEAMMATES
 
      SendMessage(type="shutdown_request", recipient="tech-writer", content="Release phase complete.")
      SendMessage(type="shutdown_request", recipient="release-engineer", content="Release phase complete.")
+     SendMessage(type="shutdown_request", recipient="product-manager", content="Release phase complete. Thank you for your product stewardship.")
      Wait for confirmations (responses arrive as new conversation turns).
      Track which teammates have confirmed shutdown.
 
@@ -1202,12 +1231,12 @@ the following. Do not skip any item. Do not claim completion if any item fails.
 
 PHASE 1 GATES:
 - [ ] Epic Decomposition passed — 3-7 epics defined with PRD section mapping
-      and execution order, all 5 specialists approved (or lead made binding decisions)
+      and execution order, all specialists approved (or lead made binding decisions)
 - [ ] Story Refinement passed — all stories have acceptance criteria and valid
-      epic_id, all 5 specialists approved (or lead made binding decisions)
-- [ ] Architecture Review passed — per-epic arch docs validated by all 5
-- [ ] Data Model Review passed — per-epic data docs validated by all 5
-- [ ] Spec Validation passed — per-epic specs validated by all 5
+      epic_id, all specialists approved (or lead made binding decisions)
+- [ ] Architecture Review passed — per-epic arch docs validated by all specialists
+- [ ] Data Model Review passed — per-epic data docs validated by all specialists
+- [ ] Spec Validation passed — per-epic specs validated by all specialists
 
 PHASE 2 GATES (per sprint):
 - [ ] All IMPL tasks completed and pair-reviewed (APPROVE verdict)
@@ -1217,6 +1246,7 @@ PHASE 2 GATES (per sprint):
 - [ ] Code Review report: PASS or PASS_WITH_WARNINGS (zero CRITICAL/HIGH unresolved)
 - [ ] Data Review report (if data-heavy): PASS or PASS_WITH_WARNINGS
 - [ ] AI/ML Review report (if has_ai_ml and epic has ML): PASS or PASS_WITH_WARNINGS
+- [ ] Prompt Review report (if has_ai_ml and epic has prompts/LLM): PASS or PASS_WITH_WARNINGS
 - [ ] Analytics Review report (if has_analytics and epic has analytics): PASS or PASS_WITH_WARNINGS
 - [ ] UX Review report (if has_frontend_ui and epic has UI): PASS or PASS_WITH_WARNINGS
 - [ ] Architecture Review report: PASS or PASS_WITH_WARNINGS
@@ -1434,11 +1464,11 @@ TROUBLESHOOTING:
   - If soft: start E3 with a stub/interface for the E2 dependency
   - If hard: prioritize E2 completion, defer E3 to the next available sprint
 
-  Teammate count exceeds 5:
+  Teammate count exceeds 10:
   - Review which teammates are active: TaskList + check for idle notifications
   - Shut down any teammates that have completed their work
   - Stagger spawning: complete one batch before starting the next
-  - Never have more than 5 active teammates simultaneously
+  - Never have more than 10 active teammates simultaneously
 
   State file corruption:
   - NEVER write state.json directly — it is an XState snapshot managed by brain

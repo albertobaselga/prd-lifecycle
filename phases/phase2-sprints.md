@@ -5,7 +5,7 @@
 | Role | Lifecycle | Spawn Point | Shutdown Point |
 |------|-----------|-------------|----------------|
 | Scrum Master (SM) | Long-lived | First Refinement (R.1) | T.5 when routing to Release |
-| Product Manager (PM) | Per-cycle | Refinement start | After Refinement validation (R.5) |
+| Product Manager (PM) | Per-cycle | Refinement start (R.2) | After Sprint Review (SR.5) |
 | Developers (dev-1, dev-2) | Per-sprint | BUILD sub-phase | After BUILD complete |
 | Reviewers (qa, security, etc.) | Per-sprint | VERIFY sub-phase | After VERIFY complete |
 | Architect | Per-sprint | ARCH REVIEW sub-phase | After Retro |
@@ -25,7 +25,7 @@ R.1  SPAWN SCRUM MASTER (if not already alive)
 
      If this is the first refinement session, spawn the Scrum Master:
 
-     Task(subagent_type="general-purpose", model="sonnet",
+     Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="scrum-master",
           prompt="You are the Scrum Master. You facilitate refinement sessions,
           sprint planning, and retrospectives. You help the team estimate story
@@ -44,7 +44,7 @@ R.1  SPAWN SCRUM MASTER (if not already alive)
 
 R.2  SPAWN PRODUCT MANAGER
 
-     Task(subagent_type="general-purpose", model="sonnet",
+     Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="product-manager",
           prompt="You are the Product Manager. Present stories from the backlog,
           explain business context, answer clarifying questions, and validate
@@ -115,15 +115,13 @@ R.4  PRODUCT MANAGER VALIDATION
      If PM requests re-refinement, relay feedback to SM and repeat R.3.
      Maximum 2 refinement cycles per batch.
 
-R.5  SHUTDOWN PRODUCT MANAGER
+R.5  PM STAYS ALIVE
 
-     After successful validation:
-     SendMessage(type="shutdown_request", recipient="product-manager",
-       content="Refinement complete.")
+     After successful validation the Product Manager stays alive through
+     Sprint Review.  Do NOT shut it down here — its scope-guard perspective
+     is needed when evaluating sprint results (SR.2b).
 
-     Wait for shutdown confirmation (response arrives as a new conversation turn).
-
-     The Scrum Master stays alive for Sprint Planning.
+     The Scrum Master also stays alive for Sprint Planning.
 
 R.6  TRANSITION TO PLANNING GATE
 
@@ -328,7 +326,7 @@ A.1  SPAWN BUILD TEAMMATES
           team_name="prd-{slug}", name="dev-1",
           prompt="You are Developer 1 in a pair programming team. You implement
           features and review your partner's code. Read your role instructions
-          from ~/.claude/skills/prd-lifecycle/preambles/dev.md and prior
+          from ~/.claude/skills/prd-lifecycle/preambles/fullstack-dev.md and prior
           learnings from prd-lifecycle/{slug}/learnings.md (if it exists) before
           starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
@@ -340,7 +338,7 @@ A.1  SPAWN BUILD TEAMMATES
           team_name="prd-{slug}", name="dev-2",
           prompt="You are Developer 2 in a pair programming team. You implement
           features and review your partner's code. Read your role instructions
-          from ~/.claude/skills/prd-lifecycle/preambles/dev.md and prior
+          from ~/.claude/skills/prd-lifecycle/preambles/fullstack-dev.md and prior
           learnings from prd-lifecycle/{slug}/learnings.md (if it exists) before
           starting work.
           RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
@@ -362,10 +360,10 @@ A.1  SPAWN BUILD TEAMMATES
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
           the lead.")
 
-     CONDITIONAL BUILD SPECIALISTS (max 3 total with devs, respecting 10-limit):
+     CONDITIONAL BUILD SPECIALISTS (alongside devs, respecting 10-limit):
 
      If has_ai_ml AND stories in this sprint involve AI/ML features, spawn applied-ai-engineer
-     INSTEAD OF one dev (use dev-1 only + applied-ai-engineer):
+     alongside devs:
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="applied-ai-engineer",
           prompt="You are the Applied AI Engineer. Implement the ML pipeline
@@ -379,7 +377,7 @@ A.1  SPAWN BUILD TEAMMATES
           the lead.")
 
      If has_frontend_ui AND stories in this sprint involve significant UI work, spawn
-     ux-ui-designer INSTEAD OF one dev (use dev-1 only + ux-ui-designer):
+     ux-ui-designer alongside devs:
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="ux-ui-designer",
           prompt="You are the UX/UI Product Designer. Implement the UI
@@ -393,7 +391,7 @@ A.1  SPAWN BUILD TEAMMATES
           the lead.")
 
      If has_analytics AND stories in this sprint involve analytics features, spawn
-     data-scientist INSTEAD OF one dev (use dev-1 only + data-scientist):
+     data-scientist alongside devs:
      Task(subagent_type="general-purpose", model="opus",
           team_name="prd-{slug}", name="data-scientist",
           prompt="You are the Data Scientist. Implement the analytics pipeline,
@@ -406,16 +404,29 @@ A.1  SPAWN BUILD TEAMMATES
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
           the lead.")
 
-     NOTE: Only ONE conditional specialist per BUILD sub-phase. If stories in
-     this sprint require multiple specialists (e.g., AI + UI), prioritize the
-     dominant domain and have the dev handle the secondary domain. The specialist
-     review in VERIFY will catch issues.
+     If has_ai_ml AND stories in this sprint involve prompts/prompt chains, spawn
+     prompt-engineer alongside devs:
+     Task(subagent_type="general-purpose", model="opus",
+          team_name="prd-{slug}", name="prompt-engineer",
+          prompt="You are the Prompt Engineer. Implement and optimize prompts,
+          prompt chains, and LLM integration components. Read your role instructions
+          from ~/.claude/skills/prd-lifecycle/preambles/prompt-engineer.md and
+          prior learnings from prd-lifecycle/{slug}/learnings.md (if it exists)
+          before starting work.
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
 
-     When a conditional specialist replaces dev-2 in BUILD:
-     - dev-1 handles general implementation + pair reviews the specialist's code
-     - The specialist handles domain-specific implementation
-     - Pair review is: dev-1 reviews specialist's code, specialist reviews
-       dev-1's domain-relevant code
+     NOTE: Multiple conditional specialists can be active simultaneously (max 10
+     total teammates). If stories require multiple specialists (e.g., AI + UI +
+     prompts), spawn all applicable ones alongside devs.
+
+     When conditional specialists are present in BUILD:
+     - dev-1 and dev-2 handle general implementation
+     - Each specialist handles their domain-specific implementation
+     - Pair review: devs review specialist code, specialists review
+       domain-relevant dev code
 
      TRANSITION:
      bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=sprint_build
@@ -516,7 +527,7 @@ A.5b COLLECT BUILD RETRO INPUT (before shutdown)
      This ensures dev perspectives are captured for the sprint retro (T.2).
 
      Send to each build teammate (dev-1, dev-2, data-engineer if present,
-     or conditional specialist if present):
+     and any conditional specialists if present):
 
      SendMessage(type="message", recipient="{build-teammate}",
        content="SPRINT RETRO INPUT (pre-shutdown): Before you shut down,
@@ -539,9 +550,10 @@ A.6  SHUTDOWN BUILD TEAMMATES
      SendMessage(type="shutdown_request", recipient="dev-2", content="Build phase complete.")
      If data-engineer was spawned:
      SendMessage(type="shutdown_request", recipient="data-engineer", content="Build phase complete.")
-     If conditional specialist was spawned (applied-ai-engineer, ux-ui-designer,
-     or data-scientist):
+     If conditional specialists were spawned (applied-ai-engineer, ux-ui-designer,
+     data-scientist, prompt-engineer):
      SendMessage(type="shutdown_request", recipient="{specialist}", content="Build phase complete.")
+     Repeat for each active conditional specialist.
 
      Wait for shutdown confirmations (responses arrive as new conversation
      turns). Track which teammates have confirmed shutdown.
@@ -551,7 +563,7 @@ A.6  SHUTDOWN BUILD TEAMMATES
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 ----------------------------------------------------------------------------
-SUB-PHASE B: VERIFY + REVIEW (4-5 teammates, parallel)
+SUB-PHASE B: VERIFY + REVIEW (4+ teammates, parallel)
 ----------------------------------------------------------------------------
 
 B.1  SPAWN REVIEW TEAMMATES
@@ -680,6 +692,21 @@ B.1  SPAWN REVIEW TEAMMATES
           summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
           the lead.")
      → Writes to: prd-lifecycle/{slug}/sprints/sprint-{n}/reports/ux-review.md
+
+     If has_ai_ml AND stories in this sprint have prompt/LLM components:
+     Task(subagent_type="general-purpose", model="opus",
+          team_name="prd-{slug}", name="prompt-engineer",
+          prompt="You are the Prompt Engineer reviewing prompt design and LLM
+          integration. Verify prompt quality, chain reliability, fallback
+          behavior, and output validation. Read your role instructions from
+          ~/.claude/skills/prd-lifecycle/preambles/prompt-engineer.md and
+          prior learnings from prd-lifecycle/{slug}/learnings.md (if it exists)
+          before starting work.
+          RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+          SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+          summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+          the lead.")
+     → Writes to: prd-lifecycle/{slug}/sprints/sprint-{n}/reports/prompt-review.md
 
      These conditional reviews follow the same finding severity protocol
      (CRITICAL/HIGH/MEDIUM/LOW) and the same fix cycle limits (max 3) as
@@ -859,8 +886,8 @@ B.6  SHUTDOWN REVIEW TEAMMATES (except any needed for arch review)
 
      Shutdown conditional specialist reviewers (if spawned in this sprint):
      SendMessage(type="shutdown_request") to any of: applied-ai-engineer,
-     data-scientist, ux-ui-designer that were spawned for the second
-     verification wave. Wait for all shutdown confirmations.
+     data-scientist, ux-ui-designer, prompt-engineer that were spawned for
+     the second verification wave. Wait for all shutdown confirmations.
 
      NEXT: Sub-Phase C — Architecture Review. Spawn the architect as a team
      agent via Task(team_name=...). See C.1.
@@ -931,17 +958,17 @@ C.4  GATE: ARCHITECTURE REVIEW PASS
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 ----------------------------------------------------------------------------
-SPRINT REVIEW (Team: TL + architect + SM)
+SPRINT REVIEW (Team: TL + architect + SM + PM)
 ----------------------------------------------------------------------------
 
 SR.1  GATHER ACTIVE TEAMMATES
 
-     At this point, the architect and scrum-master should be active.
-     The lead conducts the sprint review with both.
+     At this point, the architect, scrum-master, and product-manager should
+     be active.  The lead conducts the sprint review with all three.
 
 SR.2  PRESENT SUMMARY
 
-     Send to architect AND scrum-master via SendMessage:
+     Send to architect, scrum-master, AND product-manager via SendMessage:
 
      SendMessage(type="message", recipient="architect",
        content="SPRINT REVIEW: Sprint {n} for stories from epics {epic-id-list} is complete.
@@ -968,13 +995,39 @@ SR.2  PRESENT SUMMARY
        RESPONSE FORMAT: Respond via SendMessage with your process assessment.",
        summary="Sprint review — process assessment")
 
-     Wait for BOTH architect and scrum-master SendMessage responses before
-     proceeding.
+SR.2b PRODUCT MANAGER REVIEW
+
+     SendMessage(type="message", recipient="product-manager",
+       content="SPRINT REVIEW — PRODUCT ASSESSMENT: Sprint {n} complete for
+       stories from epics {epic-id-list}.
+
+       Review verdicts: QA={verdict}, Security={verdict}, Performance={verdict},
+       Code={verdict}, Arch={verdict}.
+       Planned: {PLANNED_SP} SP, Completed: {COMPLETED_SP} SP.
+
+       Evaluate from a product perspective:
+       1. Did this sprint deliver user value toward the success metrics in the PRD?
+       2. Was scope maintained or did it creep beyond what was refined?
+       3. Are the measurable success criteria met or on track?
+       4. Are there stories that technically passed but missed the product intent?
+
+       Write your Product Review report to:
+       prd-lifecycle/{slug}/sprints/sprint-{n}/reports/product-review.md
+
+       Use the format from your preamble (Status, Value Delivery, Scope
+       Assessment, Success Criteria, Findings, Verdict).
+
+       RESPONSE FORMAT: Respond via SendMessage with your verdict summary
+       (APPROVE / REQUEST_CHANGES) and key findings.",
+       summary="Sprint review — product assessment")
+
+     Wait for ALL THREE teammates (architect, scrum-master, product-manager)
+     to respond via SendMessage before proceeding.
 
 SR.3  GO / NO-GO DECISION
 
-     Based on all reports, architect confidence, and SM process assessment,
-     the lead makes a decision:
+     Based on all reports, architect confidence, SM process assessment,
+     and PM product verdict, the lead makes a decision:
 
      GO — All gates passed, no unresolved CRITICAL/HIGH findings.
      NO-GO — Unresolved issues remain. Create targeted fix tasks and re-run
@@ -989,6 +1042,35 @@ SR.4  WRITE SPRINT REVIEW
      - Deferred items (if any)
      - Architect confidence assessment
      - SM process assessment and velocity observations
+     - PM product verdict (value delivery, scope assessment, success criteria)
+
+     Verify that product-review.md was written by the PM:
+     test -f prd-lifecycle/{slug}/sprints/sprint-{n}/reports/product-review.md
+
+SR.5  COLLECT PM RETRO INPUT & SHUTDOWN
+
+     Before shutting down the PM, collect retro input:
+
+     SendMessage(type="message", recipient="product-manager",
+       content="SPRINT RETRO INPUT (pre-shutdown): Before you shut down,
+       share your retrospective for this sprint from a product perspective:
+       - Did the refined stories accurately reflect the PRD intent?
+       - Were acceptance criteria clear enough for implementation?
+       - What scope risks should the team watch for next sprint?
+       Format: ## [strategy] {title}: {description}
+       and/or: ## [pitfall] {title}: {description}",
+       summary="Collect PM retro input before shutdown")
+
+     Wait for PM's SendMessage response.  Store for use in T.2.
+
+     Then shut down:
+     SendMessage(type="shutdown_request", recipient="product-manager",
+       content="Sprint Review complete. Thank you for your product assessment.")
+
+     Wait for shutdown confirmation (response arrives as a new conversation turn).
+
+     NOTE: PM will be re-spawned at R.2 if the lifecycle loops back to
+     Refinement for the next cycle.
 
      TRANSITION:
      bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=sprint_review_done
@@ -1000,8 +1082,10 @@ SPRINT RETROSPECTIVE
 
 T.1  ASK REMAINING TEAMMATES FOR RETROSPECTIVE INPUT
 
-     At this point, architect and scrum-master should be active. Devs and
-     reviewers already provided retro input before shutdown (A.5b and B.5b).
+     At this point, architect and scrum-master should be active.  The PM
+     was shut down after Sprint Review (SR.5) — its retro input is
+     collected in SR.5b below.  Devs and reviewers already provided retro
+     input before shutdown (A.5b and B.5b).
 
      Send to architect and scrum-master:
 
@@ -1027,6 +1111,7 @@ T.2  COMPILE RETRO (all sources)
      Combine retro inputs from ALL sources:
      - Build teammates (collected in A.5b before their shutdown)
      - Reviewers (collected in B.5b before their shutdown)
+     - Product Manager (collected in SR.5 before shutdown)
      - Architect (collected in T.1)
      - Scrum Master (collected in T.1)
 
@@ -1141,7 +1226,7 @@ T.5  TEAMMATE LIFECYCLE: SHUTDOWN SPRINT TEAMMATES
      SendMessage(type="shutdown_request", recipient="architect", content="Sprint complete.")
      Wait for shutdown confirmation.
 
-     The Product Manager should already be shut down (after Refinement step R.5).
+     The Product Manager should already be shut down (after Sprint Review step SR.5).
 
      SM LIFECYCLE — depends on next phase (determined in T.4e):
      - If routing to REFINEMENT or PLANNING: SM stays alive (long-lived across cycles).
