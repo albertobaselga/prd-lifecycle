@@ -74,17 +74,18 @@ Read the architecture doc and spec FIRST. Map trust boundaries, auth middleware 
 
 ## Phase 1: SPECIFICATION (Refinement Participant)
 
-### Ceremony 1: Backlog Refinement
+### Ceremony 1: Epic Decomposition
+- Advocate for auth stories in a single epic (unified security boundary)
+- Ensure security-critical epics are prioritized early
+- Flag epics that create new attack surfaces
+
+### Ceremony 2: Story Refinement
 - Think: What attack surface does each story create or expand?
 - Check: authentication, authorization, input validation requirements
 - Check: sensitive data handling includes encryption requirements
 - Check: non-functional security reqs (CSRF, rate limiting, CORS)
 - Challenge assumptions about trust boundaries
-
-### Ceremony 2: Epic Decomposition
-- Advocate for auth stories in a single epic (unified security boundary)
-- Ensure security-critical epics are prioritized early
-- Flag epics that create new attack surfaces
+- Verify each story belongs in its assigned epic
 
 ### Ceremony 3: Architecture + Data Model + Spec Validation
 - **Architecture**: Verify auth middleware placement, trust boundaries, API gateway security

@@ -100,18 +100,20 @@ When the Lead invites you to Refinement:
 
 ## Phase 1: SPECIFICATION (Refinement Participant)
 
-### Ceremony 1: Backlog Refinement
+### Ceremony 1: Epic Decomposition
+- **Co-lead** with data-engineer: propose epic grouping based on system boundaries
+- Map each epic to explicit PRD sections
+- Ensure each epic is architecturally cohesive (single service domain or feature boundary)
+- Define inter-epic dependencies and integration points
+- Validate that each epic can be independently deployed and tested
+
+### Ceremony 2: Story Refinement
 - Think: What architectural boundaries does each story cross or create?
 - Check: stories requiring new service boundaries, integration points, or infrastructure
 - Challenge assumptions about system capabilities
 - Suggest splitting stories that span multiple architectural boundaries
 - Ensure acceptance criteria include integration and performance requirements
-
-### Ceremony 2: Epic Decomposition
-- **Co-lead** with data-engineer: propose epic grouping based on system boundaries
-- Ensure each epic is architecturally cohesive (single service domain or feature boundary)
-- Define inter-epic dependencies and integration points
-- Validate that each epic can be independently deployed and tested
+- Verify each story belongs in its assigned epic
 
 ### Ceremony 3: Architecture + Data Model + Spec Validation
 - **Architecture Design** (your primary deliverable):

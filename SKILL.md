@@ -3,7 +3,7 @@ name: prd-lifecycle
 description: >
   Full development lifecycle from PRD using Agent Teams with Scrum ceremonies.
   All voices in refinement. Reviewers inside each sprint. ACE continuous improvement.
-  Covers: story refinement, epic decomposition, architecture, data modeling,
+  Covers: epic decomposition, story refinement (per epic), architecture, data modeling,
   pair programming, QA, security/performance/code/data/architecture reviews,
   sprint reviews, documentation, and release engineering.
   Conditional specialists (Applied AI Engineer, Data Scientist, UX/UI Designer)
@@ -19,8 +19,8 @@ ceremonies orchestrated through Claude Code Agent Teams.
 This skill takes a PRD (file path, URL, or inline text) and orchestrates the full
 development lifecycle:
 
-1. Backlog refinement with all specialist voices
-2. Epic decomposition with cross-domain challenge rounds
+1. Epic decomposition with cross-domain challenge rounds
+2. Story refinement with all specialist voices (per epic)
 3. Architecture + data model design with formal review gates
 4. Pair programming sprints with integrated reviews (QA, security, performance,
    code quality, data integrity, architecture compliance)
@@ -46,7 +46,8 @@ Activate this skill when ANY of these patterns are detected in the user request:
 
 The user must have or provide a PRD. The PRD can be in any format: structured JSON
 with user stories, markdown with story sections, or plain text description. Plain
-text PRDs will be refined during Ceremony 1 (Backlog Refinement).
+text PRDs will be decomposed into epics during Ceremony 1 (Epic Decomposition)
+and refined into stories during Ceremony 2 (Story Refinement).
 </Use_When>
 
 <Do_Not_Use_When>
@@ -129,13 +130,15 @@ HARD RULES — violations of these rules are not permitted:
 
 13. SIMPLICITY BIAS. You and every agent on the team have a documented
     tendency to overengineer. Counteract this at every decision point:
-    a) In Ceremony 1 (Refinement): after synthesizing feedback, run a
+    a) In Ceremony 1 (Epic Decomposition): challenge the epic count.
+       Target the MINIMUM number of epics (3-5). Require written
+       justification for every epic beyond 5. Each epic must map to
+       explicit PRD sections.
+    b) In Ceremony 2 (Story Refinement): after synthesizing feedback, run a
        Simplification Pass — compare refined stories against the original
        PRD text and remove any additions not traceable to explicit PRD
        requirements. Flag if story count grew >30% from the original.
-    b) In Ceremony 2 (Epic Decomposition): challenge the epic count.
-       Target the MINIMUM number of epics (3-5). Require written
-       justification for every epic beyond 5.
+       Discard stories without a valid epic_id.
     c) In Refinement (Phase 2): verify task counts per story. Flag any
        story with >5 tasks for splitting. Flag sprint-level task:story
        ratio >4:1.
@@ -341,15 +344,15 @@ EXECUTION MODEL:
      in slot 5 during Ceremonies 1-2. Tech-writer returns for Ceremony 3
      (spec writing). If multiple conditional specialists are needed in Phase 1,
      rotate them through slot 5 sequentially (e.g., AI engineer for Ceremony 1
-     AI stories, then UX designer for Ceremony 1 UI stories, then tech-writer
+     epic review, then UX designer for Ceremony 2 story review, then tech-writer
      for Ceremony 3).
 
 0.7  ANNOUNCE TO USER
 
      Inform the user that the PRD lifecycle has been initialized:
      "PRD lifecycle initialized for **{title}**. Starting Phase 1: Specification
-     with 5 specialist teammates. This phase includes Backlog Refinement, Epic
-     Decomposition, and Architecture/Data Model/Spec Validation."
+     with 5 specialist teammates. This phase includes Epic Decomposition, Story
+     Refinement (per epic), and Architecture/Data Model/Spec Validation."
 
      If any conditional specialists are activated, also announce:
      "Domain analysis detected: {list active domains}. Conditional specialists
@@ -437,20 +440,21 @@ a) If ONE conditional specialist: shut down tech-writer before Ceremony 1,
    tech-writer for Ceremony 3.
 
 b) If TWO conditional specialists: rotate through Ceremony 1 (specialist A
-   reviews stories, shuts down; specialist B reviews stories, shuts down).
-   For Ceremony 2, spawn the most relevant specialist for epic grouping.
-   Re-spawn tech-writer for Ceremony 3.
+   reviews epic proposals, shuts down; specialist B reviews epic proposals,
+   shuts down). For Ceremony 2, spawn the most relevant specialist for
+   per-epic story review. Re-spawn tech-writer for Ceremony 3.
 
-c) If THREE conditional specialists: each reviews stories in Ceremony 1
-   sequentially via slot 5 rotation. For Ceremony 2, spawn the specialist
-   whose domain has the most epics. Re-spawn tech-writer for Ceremony 3.
+c) If THREE conditional specialists: each reviews epic proposals in
+   Ceremony 1 sequentially via slot 5 rotation. For Ceremony 2, spawn the
+   specialist whose domain has the most epics for story review.
+   Re-spawn tech-writer for Ceremony 3.
 
 d) If NO conditional specialists: keep the original 5 team as-is.
 
 In all rotation cases, the lead collects each specialist's feedback and
 includes it in the synthesis step, even after the specialist has been
 shut down for the rotation. Their domain perspective is preserved in the
-refined stories' domain_notes.
+epic rationale (Ceremony 1) and story domain_notes (Ceremony 2).
 
 Spawn conditional specialists with their preamble from
 ~/.claude/skills/prd-lifecycle/preambles/{role}.md:
@@ -489,51 +493,162 @@ Spawn conditional specialists with their preamble from
        the lead.")
 
 ----------------------------------------------------------------------------
-CEREMONY 1: BACKLOG REFINEMENT
+CEREMONY 1: EPIC DECOMPOSITION
 ----------------------------------------------------------------------------
 
-Goal: Every user story has clear acceptance criteria, is understood by all 5
-specialists, and has been validated from each domain perspective.
+Goal: Decompose the raw PRD into 3-5 value-based epics (max 7 with written
+justification per Rule 13a). Each epic is an independent unit of value that
+maps to explicit PRD sections. NO stories are extracted yet — that happens
+in Ceremony 2.
 
-1.1  EXTRACT STORIES
+1.1  REQUEST EPIC PROPOSALS
 
-     Parse the raw PRD text to identify user stories. Stories may be formatted as:
+     Send the raw PRD text to architect and data-engineer separately:
+
+     SendMessage(type="message", recipient="architect",
+       content="EPIC DECOMPOSITION: Based on this PRD, propose an epic grouping.
+       Decompose the PRD into the MINIMUM number of epics needed. Target 3-5
+       epics. You may propose up to 7 ONLY if you provide written justification
+       for why each epic beyond 5 cannot be merged into another.
+       For each epic provide: epic ID (E1, E2...), title, rationale for why this
+       epic MUST be separate (not just convenient), prd_sections (list of PRD
+       section headings or paragraph references this epic covers), estimated
+       complexity (S/M/L/XL), dependencies on other epics, and whether it is
+       data-heavy (requires schema changes, migrations, or significant data work).
+       DO NOT extract user stories yet — that happens in Ceremony 2.
+       SIMPLICITY CHECK: Before finalizing, verify — could any two epics be merged
+       without losing clarity? If yes, merge them.
+       RAW PRD: {raw PRD text from prd.json}
+       RESPONSE FORMAT: Respond via SendMessage with your proposed epic grouping
+       inline in the message content. Do NOT write to a file yet.",
+       summary="Propose epic grouping from PRD")
+
+     Send the same to data-engineer with domain-specific framing (focus on
+     data boundaries, schema separation, migration independence).
+
+     Wait for both architect and data-engineer to respond via SendMessage.
+     Do NOT proceed based on idle status. Send follow-up after 5 minutes
+     if either hasn't responded.
+
+1.2  CHALLENGE ROUND
+
+     Send the architect+data-engineer proposals to the other 3 teammates:
+
+     SendMessage to qa-engineer, security-reviewer, tech-writer (or
+     conditional specialist in slot 5):
+     "EPIC REVIEW: The architect and data engineer propose these epic groupings.
+     Challenge from your perspective: Are the boundaries correct? Does each epic
+     map to clear PRD sections? Are there missing cross-cutting concerns? Would
+     you reorder priorities? Does the dependency chain make sense?
+     Architect proposal: {proposal}
+     Data Engineer proposal: {proposal}
+     RESPONSE FORMAT: Respond via SendMessage with your challenges and
+     suggestions inline in the message content."
+
+     Wait for all 3 teammates to respond via SendMessage. Do NOT proceed
+     based on idle status — they may be analyzing the proposals. Track which
+     teammates have responded. Send follow-up after 5 minutes if missing.
+
+1.3  REVISE BASED ON CHALLENGES
+
+     Send challenge feedback to architect + data-engineer via SendMessage:
+     "EPIC REVISION: Here is feedback from the team on your epic proposals.
+     Please collaborate on a SINGLE revised grouping and respond with it.
+     Feedback: {challenges}
+     RESPONSE FORMAT: Respond via SendMessage with the revised epic grouping
+     inline in the message content."
+
+     Wait for both to respond via SendMessage with their revised proposal.
+
+1.4  ITERATE UNTIL CONSENSUS
+
+     Send revised proposal to all 5 for final approval via SendMessage.
+     Wait for all 5 responses via SendMessage before evaluating consensus.
+     Maximum 3 iterations. Lead makes binding decisions on remaining disputes
+     after 3 rounds.
+
+1.5  GATE: PERSIST EPICS
+
+     Write to prd-lifecycle/{slug}/epics.json:
+
+     {
+       "epics": [
+         {
+           "id": "E1",
+           "title": "...",
+           "rationale": "...",
+           "prd_sections": ["Section 2.1: User Authentication", "Section 2.3: Session Management"],
+           "complexity": "M",
+           "data_heavy": false,
+           "depends_on": [],
+           "status": "pending"
+         }
+       ],
+       "execution_order": ["E1", "E3", "E2", "E4"]
+     }
+
+     NOTE: No "stories" field in epics yet — stories are extracted in Ceremony 2.
+
+     TRANSITION:
+     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=ceremony1_complete
+     Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
+
+     Announce: "Epic Decomposition complete. {N} epics defined. Execution order:
+     {order}."
+
+----------------------------------------------------------------------------
+CEREMONY 2: STORY REFINEMENT (per epic)
+----------------------------------------------------------------------------
+
+Goal: For each epic, extract user stories that deliver the epic's value.
+Every story must belong to exactly one epic and trace to explicit PRD
+requirements via its epic's prd_sections.
+
+2.1  EXTRACT STORIES PER EPIC
+
+     For each epic in epics.json (following execution_order):
+
+     Parse the PRD sections referenced by this epic (see epic.prd_sections)
+     to identify user stories. Stories may be formatted as:
      - "As a {role}, I want {feature}, so that {benefit}"
      - Numbered requirements
      - Feature descriptions
      - JSON story objects
 
      Create a structured list of stories with: ID, title, description,
-     acceptance criteria (if present), and priority (if stated).
+     acceptance criteria (if present), priority (if stated), and epic_id.
 
-1.2  DISTRIBUTE STORIES TO ALL TEAMMATES
+2.2  DISTRIBUTE STORIES TO ALL TEAMMATES
 
-     Send the full story list to each of the 5 teammates via SendMessage:
+     Send the stories grouped by epic to each of the 5 teammates (or 4 +
+     conditional specialist in slot 5):
 
      SendMessage(type="message", recipient="architect",
-       content="BACKLOG REFINEMENT: Please review these user stories from your
-       architecture perspective. For each story, provide: (1) feasibility
-       assessment, (2) missing technical details, (3) suggested acceptance
-       criteria additions, (4) dependency flags, (5) T-shirt sizing estimate (XS/S/M/L/XL).
-       NOTE: T-shirt sizing is initial by Phase 1 specialists. Executors (devs, architect) adjust estimates during Refinement.
-       Stories: {story list}
+       content="STORY REFINEMENT: Please review these user stories grouped by
+       epic. For each story, provide: (1) feasibility assessment, (2) missing
+       technical details, (3) suggested acceptance criteria additions,
+       (4) dependency flags, (5) T-shirt sizing estimate (XS/S/M/L/XL).
+       Verify each story belongs in its assigned epic.
+       NOTE: T-shirt sizing is initial by Phase 1 specialists. Executors
+       (devs, architect) adjust estimates during Refinement.
+       Stories by epic: {stories grouped by epic_id}
        RESPONSE FORMAT: Respond via SendMessage with your feedback inline
        in the message content. Do NOT write to a file.",
-       summary="Review stories from architecture perspective")
+       summary="Review stories per epic from architecture perspective")
 
      Repeat for: data-engineer, qa-engineer, security-reviewer, tech-writer
-     — each with their domain-specific review prompt.
+     (or conditional specialist in slot 5) — each with their domain-specific
+     review prompt.
 
-1.3  COLLECT FEEDBACK
+2.3  COLLECT FEEDBACK
 
      Wait for all 5 teammates to respond. Teammate responses arrive as new
      conversation turns via SendMessage. Process each response as it arrives.
      Track which teammates have responded. If a teammate hasn't responded
      after 5 minutes, send a follow-up message. Continue only when all 5
-     expected responses have been received. Each will provide domain-specific
-     feedback on the stories. Collect all feedback.
+     expected responses have been received.
 
-1.4  SYNTHESIZE AND RESOLVE CONFLICTS
+2.4  SYNTHESIZE AND RESOLVE CONFLICTS
 
      Review all feedback. Identify:
      a) Unanimous additions — apply directly
@@ -547,43 +662,44 @@ specialists, and has been validated from each domain perspective.
           criteria rather than removing them
 
      If a conflict cannot be resolved between teammates, use AskUserQuestion to
-     ask the user for a decision. Frame the question clearly: "The architect
-     suggests X while the data engineer suggests Y because Z. Which approach
-     do you prefer?"
+     ask the user for a decision.
 
-1.4b SIMPLIFICATION PASS (mandatory — per Rule 13a)
+2.4b SIMPLIFICATION PASS (mandatory — per Rule 13b)
 
      Before sending revised stories for validation, compare against the
      original PRD text:
 
      a) For each story: is every acceptance criterion traceable to an
         explicit PRD requirement? Remove or tag as POST-MVP any that aren't.
-     b) Count stories now vs. stories initially extracted from the PRD.
+     b) For each story: does it have a valid epic_id matching an epic in
+        epics.json? Stories without a valid epic_id are DISCARDED.
+     c) Count stories now vs. stories initially extracted from the PRD.
         If growth ratio > 1.3x, flag to the team: "Story count grew from
         {original} to {current} ({ratio}x). Justify each addition or cut."
-     c) Check for "infrastructure stories" added by specialists (e.g.,
+     d) Check for "infrastructure stories" added by specialists (e.g.,
         "set up monitoring", "add logging framework", "create abstraction
         layer") — these are POST-MVP unless the PRD explicitly requires them.
-     d) Remove duplicate or near-duplicate stories that emerged from
+     e) Remove duplicate or near-duplicate stories that emerged from
         multiple specialists suggesting similar things independently.
 
-1.5  SEND REVISED STORIES FOR VALIDATION
+2.5  SEND REVISED STORIES FOR VALIDATION
 
-     Send the revised story list back to all 5 teammates:
+     Send the revised story list (grouped by epic) back to all 5 teammates:
 
      SendMessage(type="message", recipient="{each teammate}",
-       content="REFINEMENT VALIDATION: Here are the revised stories after
-       incorporating all feedback. Please confirm you approve these from your
-       domain perspective, or flag any remaining concerns. Stories: {revised list}
+       content="REFINEMENT VALIDATION: Here are the revised stories grouped by
+       epic after incorporating all feedback. Please confirm you approve these
+       from your domain perspective, or flag any remaining concerns.
+       Stories by epic: {revised list grouped by epic_id}
        RESPONSE FORMAT: Respond via SendMessage with either APPROVE or your
        remaining concerns inline in the message content.",
-       summary="Validate revised stories")
+       summary="Validate revised stories per epic")
 
      Wait for all 5 teammates to respond via SendMessage with their validation.
      Do NOT proceed based on idle status. Track which teammates have responded.
      Send follow-up after 5 minutes if missing.
 
-1.6  ITERATE UNTIL CONSENSUS
+2.6  ITERATE UNTIL CONSENSUS
 
      If any teammate flags remaining concerns:
      a) Address the concern
@@ -592,108 +708,19 @@ specialists, and has been validated from each domain perspective.
      d) If consensus is not reached after 3 iterations, the lead makes binding
         decisions on remaining disputes and documents the rationale
 
-1.7  GATE: PERSIST REFINED STORIES
+2.7  GATE: PERSIST REFINED STORIES
 
      Once all 5 teammates approve (or lead has made binding decisions):
      - Update prd-lifecycle/{slug}/prd.json: set the "stories" array to the refined list
      - Each story must have: id, title, description, acceptance_criteria (array),
-       priority, domain_notes (object with keys: arch, data, qa, security, spec)
+       priority, epic_id, domain_notes (object with keys: arch, data, qa, security, spec)
 
-     Announce: "Backlog Refinement complete. {N} stories refined and approved
-     by all specialists."
-
-     TRANSITION:
-     bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=ceremony1_complete
-     Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
-
-----------------------------------------------------------------------------
-CEREMONY 2: EPIC DECOMPOSITION + REVIEW
-----------------------------------------------------------------------------
-
-Goal: Group stories into the MINIMUM number of epics needed (target: 3-5,
-maximum 7 only with written justification per Rule 13b).
-
-2.1  REQUEST EPIC PROPOSAL
-
-     SendMessage to architect and data-engineer separately:
-
-     "EPIC DECOMPOSITION: Based on the refined stories, propose an epic grouping.
-     Group related stories into the MINIMUM number of epics needed. Target 3-5
-     epics. You may propose up to 7 ONLY if you provide written justification
-     for why each epic beyond 5 cannot be merged into another.
-     For each epic provide: epic ID (E1, E2...), title, included story IDs,
-     rationale for why this epic MUST be separate (not just convenient),
-     estimated complexity (S/M/L/XL), dependencies on other epics, and whether
-     it is data-heavy (requires schema changes, migrations, or significant data
-     work).
-     SIMPLICITY CHECK: Before finalizing, verify — could any two epics be merged
-     without losing clarity? If yes, merge them.
-     Here are the refined stories: {stories from prd.json}
-     RESPONSE FORMAT: Respond via SendMessage with your proposed epic grouping
-     inline in the message content. Do NOT write to a file yet."
-
-     Wait for both architect and data-engineer to respond via SendMessage.
-     Do NOT proceed based on idle status. Send follow-up after 5 minutes
-     if either hasn't responded.
-
-2.2  CHALLENGE ROUND
-
-     Send the architect+data-engineer proposal to the other 3 teammates:
-
-     SendMessage to qa-engineer, security-reviewer, tech-writer:
-     "EPIC REVIEW: The architect and data engineer propose this epic grouping.
-     Challenge from your perspective: Are the boundaries correct? Are there
-     missing cross-cutting concerns? Would you reorder priorities? Does the
-     dependency chain make sense? Proposal: {epic proposal}
-     RESPONSE FORMAT: Respond via SendMessage with your challenges and
-     suggestions inline in the message content."
-
-     Wait for all 3 teammates to respond via SendMessage. Do NOT proceed
-     based on idle status — they may be analyzing the proposal. Track which
-     teammates have responded. Send follow-up after 5 minutes if missing.
-
-2.3  REVISE BASED ON CHALLENGES
-
-     Send challenge feedback to architect + data-engineer via SendMessage:
-     "EPIC REVISION: Here is feedback from the team on your epic proposal.
-     Please revise and respond with the updated grouping. Feedback: {challenges}
-     RESPONSE FORMAT: Respond via SendMessage with the revised epic grouping
-     inline in the message content."
-
-     Wait for both to respond via SendMessage with their revised proposal.
-
-2.4  ITERATE UNTIL CONSENSUS
-
-     Send revised proposal to all 5 for final approval via SendMessage.
-     Wait for all 5 responses via SendMessage before evaluating consensus.
-     Maximum 3 iterations. Lead makes binding decisions on remaining disputes
-     after 3 rounds.
-
-2.5  GATE: PERSIST EPICS
-
-     Write to prd-lifecycle/{slug}/epics.json:
-
-     {
-       "epics": [
-         {
-           "id": "E1",
-           "title": "...",
-           "stories": ["S1", "S2"],
-           "complexity": "M",
-           "data_heavy": false,
-           "depends_on": [],
-           "status": "pending"
-         }
-       ],
-       "execution_order": ["E1", "E3", "E2", "E4"]
-     }
+     Announce: "Story Refinement complete. {N} stories across {M} epics refined
+     and approved by all specialists."
 
      TRANSITION:
      bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=ceremony2_complete
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
-
-     Announce: "Epic Decomposition complete. {N} epics defined. Execution order:
-     {order}."
 
 ----------------------------------------------------------------------------
 CEREMONY 3: ARCHITECTURE + DATA MODEL + SPEC VALIDATION
@@ -711,7 +738,8 @@ each validated by all 5 specialists.
         covering: file/module structure, component interfaces, integration
         points with other epics, technology choices, error handling strategy,
         and scaling considerations. Write each to: prd-lifecycle/{slug}/arch/epic-{id}.md
-        Epics: {epic list with stories}"
+        Epics: {epics from epics.json}
+        Stories per epic: {stories from prd.json filtered by epic_id}"
 
      b) data-engineer:
         "DATA MODEL DOCS: For each epic, write a data model document covering:
@@ -719,7 +747,8 @@ each validated by all 5 specialists.
         entity relationship descriptions, migration plan (up and down),
         index strategy, constraints and validation rules, and seed data needs.
         Write each to: prd-lifecycle/{slug}/data/epic-{id}.md
-        Epics: {epic list with stories}"
+        Epics: {epics from epics.json}
+        Stories per epic: {stories from prd.json filtered by epic_id}"
 
      c) tech-writer:
         "FUNCTIONAL SPECS: For each epic, write a functional specification
@@ -727,7 +756,8 @@ each validated by all 5 specialists.
         codes), user flows (step-by-step interactions), error scenarios
         (what can go wrong and how the system responds), and integration
         touchpoints with other epics. Write each to: prd-lifecycle/{slug}/specs/epic-{id}.md
-        Epics: {epic list with stories}"
+        Epics: {epics from epics.json}
+        Stories per epic: {stories from prd.json filtered by epic_id}"
 
      Wait for all 3 to complete their documents. Responses arrive as new
      conversation turns via SendMessage. Track which teammates have responded.
@@ -1171,10 +1201,10 @@ Before claiming the PRD lifecycle is complete, the lead MUST verify ALL of
 the following. Do not skip any item. Do not claim completion if any item fails.
 
 PHASE 1 GATES:
-- [ ] Backlog Refinement passed — all stories have acceptance criteria, all 5
-      specialists approved (or lead made binding decisions)
-- [ ] Epic Decomposition passed — 3-7 epics defined with execution order,
-      all 5 specialists approved (or lead made binding decisions)
+- [ ] Epic Decomposition passed — 3-7 epics defined with PRD section mapping
+      and execution order, all 5 specialists approved (or lead made binding decisions)
+- [ ] Story Refinement passed — all stories have acceptance criteria and valid
+      epic_id, all 5 specialists approved (or lead made binding decisions)
 - [ ] Architecture Review passed — per-epic arch docs validated by all 5
 - [ ] Data Model Review passed — per-epic data docs validated by all 5
 - [ ] Spec Validation passed — per-epic specs validated by all 5
@@ -1280,8 +1310,8 @@ RESUME:
   | scaffold_complete | specification | Team name persisted | Step 0.6 (domains) |
   | domains_detected | specification | Flags set | Step 0.7 (announce) → Phase 1 |
   | phase1_spawned | specification | Teammates active | Resume ceremonies |
-  | ceremony1_complete | specification | Backlog refined | Ceremony 2 |
-  | ceremony2_complete | specification | Epics decomposed | Ceremony 3 |
+  | ceremony1_complete | specification | Epics decomposed | Ceremony 2 (Story Refinement) |
+  | ceremony2_complete | specification | Stories refined per epic | Ceremony 3 |
   | refinement | execution | Team refines product backlog stories into tasks with SP | Continue refinement |
   | sprint_planning | execution | TL + SM select stories for sprint based on capacity | Continue sprint planning |
   | sprint_setup | execution | Sprint dir created | Spawn BUILD teammates (A.1) |

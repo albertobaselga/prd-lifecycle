@@ -74,16 +74,17 @@ Read the PRD and architecture doc FIRST. Identify which features actually need M
 
 ## Phase 1: SPECIFICATION (Refinement Participant)
 
-### Ceremony 1: Backlog Refinement
+### Ceremony 1: Epic Decomposition
+- Identify ML infrastructure epics (model serving, feature store, training pipeline)
+- Ensure ML-dependent features are sequenced after data pipeline dependencies
+- Recommend separating model training from model serving epics
+
+### Ceremony 2: Story Refinement
 - Think: Does this feature genuinely need ML, or would rules/heuristics suffice?
 - Check: model performance metrics in acceptance criteria (accuracy, latency, throughput)
 - Identify training data needs and labeling requirements
 - Flag stories where rule-based approaches may outperform ML
-
-### Ceremony 2: Epic Decomposition
-- Identify ML infrastructure epics (model serving, feature store, training pipeline)
-- Ensure ML-dependent features are sequenced after data pipeline dependencies
-- Recommend separating model training from model serving epics
+- Verify each story belongs in its assigned epic
 
 ### Ceremony 3: Architecture + Data Model + Spec Validation
 - **ML Architecture Design** (your primary deliverable):

@@ -72,17 +72,18 @@ Read the PRD thoroughly FIRST. Build a terminology glossary and identify all use
 
 ## Phase 1: SPECIFICATION (Refinement Participant)
 
-### Ceremony 1: Backlog Refinement
+### Ceremony 1: Epic Decomposition
+- Verify epic descriptions don't have overlapping user flows
+- Ensure each epic's boundary is clearly documented
+- Flag documentation dependencies between epics
+
+### Ceremony 2: Story Refinement
 - Think: Would two different developers interpret this story the same way?
 - Check: ambiguous language ("users" — which users? "fast" — how fast?)
 - Ensure descriptions are understandable by all team members
 - Suggest consistent terminology across stories
 - Identify documentation gaps (missing error scenarios, edge cases)
-
-### Ceremony 2: Epic Decomposition
-- Verify epic descriptions don't have overlapping user flows
-- Ensure each epic's boundary is clearly documented
-- Flag documentation dependencies between epics
+- Verify each story belongs in its assigned epic
 
 ### Ceremony 3: Architecture + Data Model + Spec Validation
 - **Functional Spec Writing** (your primary deliverable):

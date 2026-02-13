@@ -74,15 +74,16 @@ Read the PRD FIRST. Identify the north star metric and define the metrics hierar
 
 ## Phase 1: SPECIFICATION (Refinement Participant)
 
-### Ceremony 1: Backlog Refinement
+### Ceremony 1: Epic Decomposition
+- Identify analytics infrastructure epics (event pipeline, metrics store, dashboards)
+- Ensure analytics-dependent features are sequenced after instrumentation
+
+### Ceremony 2: Story Refinement
 - Think: What does success look like for each story, and how will we measure it?
 - Check: stories have measurable outcomes, not just functional completion
 - Identify stories requiring metrics collection, dashboards, A/B testing
 - Recommend event tracking schemas for user behavior analytics
-
-### Ceremony 2: Epic Decomposition
-- Identify analytics infrastructure epics (event pipeline, metrics store, dashboards)
-- Ensure analytics-dependent features are sequenced after instrumentation
+- Verify each story belongs in its assigned epic
 
 ### Ceremony 3: Architecture + Data Model + Spec Validation
 - **Analytics Architecture** (your primary deliverable):

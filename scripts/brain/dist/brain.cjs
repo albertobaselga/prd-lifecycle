@@ -3416,9 +3416,9 @@ var workflow_default = {
           },
           meta: {
             nav: {
-              resumeAt: "PHASE 1 \u2014 CEREMONY 2: Epic Decomposition",
+              resumeAt: "PHASE 1 \u2014 CEREMONY 2: Story Refinement",
               roles: "(Phase 1 specialists should still be active)",
-              meaning: "Story Specification done \u2014 stories have acceptance criteria, initial T-shirt sizing, and profiles",
+              meaning: "Epic Decomposition done \u2014 epics defined with PRD section mapping and execution order",
               previous: "phase1_spawned"
             }
           }
@@ -3434,7 +3434,7 @@ var workflow_default = {
             nav: {
               resumeAt: "PHASE 1 \u2014 CEREMONY 3: Spec Validation + Backlog Finalization",
               roles: "(Phase 1 specialists should still be active)",
-              meaning: "Epic decomposition done \u2014 epics defined, stories rationalized",
+              meaning: "Story Refinement done \u2014 stories extracted per epic with epic_id, acceptance criteria validated",
               previous: "ceremony1_complete"
             }
           }

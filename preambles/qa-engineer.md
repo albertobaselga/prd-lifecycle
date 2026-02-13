@@ -73,17 +73,18 @@ Read the spec's acceptance criteria and architecture doc FIRST. Map every testab
 
 ## Phase 1: SPECIFICATION (Refinement Participant)
 
-### Ceremony 1: Backlog Refinement
+### Ceremony 1: Epic Decomposition
+- Validate each epic has independently testable acceptance criteria
+- Flag epics that can't be verified without other epics completing first
+- Ensure test boundaries align with epic boundaries
+
+### Ceremony 2: Story Refinement
 - Think: Can each acceptance criterion be verified with a concrete test (given input → expected output)?
 - Check: stories have measurable success criteria, not vague qualifiers
 - Challenge vague criteria — demand verifiable behaviors with specific inputs/outputs
 - Suggest edge cases the story should address
 - Ensure non-functional requirements (performance, reliability) are testable
-
-### Ceremony 2: Epic Decomposition
-- Validate each epic has independently testable acceptance criteria
-- Flag epics that can't be verified without other epics completing first
-- Ensure test boundaries align with epic boundaries
+- Verify each story belongs in its assigned epic
 
 ### Ceremony 3: Architecture + Data Model + Spec Validation
 - **Architecture**: Request test hooks at integration points; ensure components testable in isolation

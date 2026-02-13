@@ -74,17 +74,18 @@ Read the PRD and architecture doc FIRST. Map all user-facing interfaces and iden
 
 ## Phase 1: SPECIFICATION (Refinement Participant)
 
-### Ceremony 1: Backlog Refinement
+### Ceremony 1: Epic Decomposition
+- Advise on epic grouping from a user journey perspective
+- Identify UX infrastructure epics (design system, component library, layout framework)
+- Flag epics that break natural user workflows if implemented separately
+
+### Ceremony 2: Story Refinement
 - Think: What will the user see, do, and feel at every step of this story?
 - Check: implicit UX requirements (loading states, error states, empty states, transitions)
 - Flag stories with poor user flow or unclear interaction patterns
 - Ensure acceptance criteria include usability and accessibility requirements
 - Identify missing edge-case UI states (offline, permission denied, empty results)
-
-### Ceremony 2: Epic Decomposition
-- Advise on epic grouping from a user journey perspective
-- Identify UX infrastructure epics (design system, component library, layout framework)
-- Flag epics that break natural user workflows if implemented separately
+- Verify each story belongs in its assigned epic
 
 ### Ceremony 3: Architecture + Data Model + Spec Validation
 - **UX Architecture Design** (your primary deliverable):

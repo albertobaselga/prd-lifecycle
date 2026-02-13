@@ -1,6 +1,6 @@
 # Epic Breakdown Template
 
-Use this template when decomposing refined user stories into epics during Ceremony 2.
+Use this template when decomposing the raw PRD into epics during Ceremony 1.
 
 ---
 
@@ -9,10 +9,15 @@ Use this template when decomposing refined user stories into epics during Ceremo
 ### Summary
 {1-2 sentence description of what this epic delivers}
 
-### User Stories
-| Story ID | Title | Priority | Acceptance Criteria Count |
-|----------|-------|----------|--------------------------|
-| S-{n} | ... | P0/P1/P2 | {n} |
+### PRD Sections Covered
+| Section | Description |
+|---------|-------------|
+| {section heading or ref} | {what this section covers} |
+
+### User Stories (populated in Ceremony 2)
+| Story ID | Title | Epic ID | Priority | Acceptance Criteria Count |
+|----------|-------|---------|----------|--------------------------|
+| S-{n} | ... | E-{n} | P0/P1/P2 | {n} |
 
 ### Data Domain
 - **Primary entities:** {tables/collections this epic owns}

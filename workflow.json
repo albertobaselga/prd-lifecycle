@@ -99,9 +99,9 @@
           },
           "meta": {
             "nav": {
-              "resumeAt": "PHASE 1 — CEREMONY 2: Epic Decomposition",
+              "resumeAt": "PHASE 1 — CEREMONY 2: Story Refinement",
               "roles": "(Phase 1 specialists should still be active)",
-              "meaning": "Story Specification done — stories have acceptance criteria, initial T-shirt sizing, and profiles",
+              "meaning": "Epic Decomposition done — epics defined with PRD section mapping and execution order",
               "previous": "phase1_spawned"
             }
           }
@@ -117,7 +117,7 @@
             "nav": {
               "resumeAt": "PHASE 1 — CEREMONY 3: Spec Validation + Backlog Finalization",
               "roles": "(Phase 1 specialists should still be active)",
-              "meaning": "Epic decomposition done — epics defined, stories rationalized",
+              "meaning": "Story Refinement done — stories extracted per epic with epic_id, acceptance criteria validated",
               "previous": "ceremony1_complete"
             }
           }

@@ -73,18 +73,20 @@ Read the PRD and architecture doc FIRST. Map entity ownership, data access patte
 
 ## Phase 1: SPECIFICATION (Refinement Participant)
 
-### Ceremony 1: Backlog Refinement
+### Ceremony 1: Epic Decomposition
+- **Co-lead** with architect: propose epic grouping based on data domain boundaries
+- Map each epic to explicit PRD sections
+- Identify shared entities across epics (e.g., User table used by auth AND profile)
+- Define data dependencies between epics (which schemas must exist first)
+- Ensure each epic's data model can be migrated independently
+
+### Ceremony 2: Story Refinement
 - Think: What data invariants does each story introduce or depend on?
 - Check: implicit data requirements (many-to-many, denormalization, cascades)
 - Flag stories requiring schema migrations, new tables, or data transformations
 - Ensure acceptance criteria include data integrity and consistency requirements
 - Challenge assumptions about data availability and access patterns
-
-### Ceremony 2: Epic Decomposition
-- **Co-lead** with architect: propose epic grouping based on data domain boundaries
-- Identify shared entities across epics (e.g., User table used by auth AND profile)
-- Define data dependencies between epics (which schemas must exist first)
-- Ensure each epic's data model can be migrated independently
+- Verify each story belongs in its assigned epic from a data perspective
 
 ### Ceremony 3: Architecture + Data Model + Spec Validation
 - **Data Model Design** (your primary deliverable):
