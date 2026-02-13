@@ -96,8 +96,8 @@ prdLifecycle
 │       ├── verify ─→ verify_done
 │       ├── arch_review ─→ arch_done
 │       ├── review_done ─→ retro_done
-│       │   ├── START_SPRINT [guard: hasRemainingEpics] → setup
-│       │   └── START_RELEASE [guard: noRemainingEpics] → release
+│       │   ├── START_SPRINT [guard: hasRemainingStories] → setup
+│       │   └── START_RELEASE [guard: noRemainingStories] → release
 ├── release                                 PHASE 3
 │   ├── release_started
 │   └── release_done
@@ -130,8 +130,8 @@ The engine outputs a formatted navigation box telling the Lead exactly where the
 
 | Guard | At State | Purpose |
 |-------|----------|---------|
-| `hasRemainingEpics` | `retro_done` | Allows `START_SPRINT` only when epics remain |
-| `noRemainingEpics` | `retro_done` | Allows `START_RELEASE` only when all epics done |
+| `hasRemainingStories` | `retro_done` | Allows `START_SPRINT` only when stories remain in backlog |
+| `noRemainingStories` | `retro_done` | Allows `START_RELEASE` only when all stories done |
 
 ### Context (tracked in state.json)
 
@@ -139,12 +139,32 @@ The engine outputs a formatted navigation box telling the Lead exactly where the
 |-------|------|---------|
 | `team_name` | string | Team identifier for this lifecycle |
 | `current_sprint` | number | Sprint counter (1-indexed, increments at START_SPRINT) |
-| `current_epic` | string | Epic being built in current sprint |
-| `epics_completed` | string[] | Epics that passed sprint review |
-| `epics_remaining` | string[] | Epics still to be built |
+| `product_backlog_count` | number | Stories remaining in backlog |
+| `current_sprint_stories` | string | Story IDs in current sprint |
+| `sprint_story_count` | number | Stories planned for current sprint |
 | `has_ai_ml` | boolean | Activates `applied-ai-engineer` |
 | `has_analytics` | boolean | Activates `data-scientist` |
 | `has_frontend_ui` | boolean | Activates `ux-ui-designer` |
+
+## Anti-Overengineering Guardrails
+
+AI agents have a documented bias toward overengineering. This skill counteracts it at three layers:
+
+**Layer 1: Universal Simplicity Mandate** — Every agent preamble includes a Simplicity Mandate that overrides all other guidance. Five laws (PRD-only scope, fewer files, direct code, justify abstractions, ask when uncertain) plus a self-check before every deliverable.
+
+**Layer 2: Role-Specific Guardrails** — Seven key roles have targeted protections:
+
+| Role | Guardrail |
+|------|-----------|
+| `architect` | Complexity Budget — max epics/files scaled to PRD size. No patterns without concrete variability. |
+| `dev` | Anti-Overengineering Protocol — simplest code per AC, no speculative features. |
+| `code-reviewer` | Overengineering Detection — flags single-use abstractions, >3 files/story ratio. |
+| `security-reviewer` | Scope Discipline — only real vulnerabilities, proportional to PRD context. |
+| `qa-engineer` | Test Scope Discipline — tests only ACs + happy path + explicit error cases. |
+| `scrum-master` | Complexity Guard — max 5 tasks/story, flags task:story ratio >4:1. |
+| `product-manager` | Scope Guard — last line of defense: "Is this in the PRD?" |
+
+**Layer 3: Orchestration Rules** — SKILL.md Rule 13 (SIMPLICITY BIAS) enforces a Simplification Pass after refinement, challenges epic counts, and treats overengineering as a sprint-blocking finding during VERIFY.
 
 ## Prerequisites
 
@@ -207,6 +227,8 @@ The skill creates a `prd-lifecycle/` directory in your project root:
 ```
 prd-lifecycle/
   state.json            # XState snapshot (current position + context)
+  backlog.json          # Product backlog (stories with priorities + SPs)
+  prd.json              # Extracted stories from PRD
   learnings.md          # ACE strategies + pitfalls across sprints
   arch/epic-{id}.md     # Architecture per epic
   specs/epic-{id}.md    # Functional spec per epic
@@ -258,7 +280,12 @@ prd-lifecycle/
       src/                              # Source (cli, engine, navigation, output, etc.)
       dist/brain.cjs                    # Pre-built bundle (no build step needed)
       run.sh                            # Wrapper: node dist/brain.cjs "$@"
+    create-backlog.sh                   # Scaffold backlog.json from epics
     init-sprint.sh                      # Create sprint-{n}/ dirs + report stubs
+    check-refinement.sh                 # Verify stories meet Definition of Ready
+    calculate-capacity.sh               # Team capacity for sprint planning
+    check-epic-status.sh                # Epic completion status across sprints
+    record-velocity.sh                  # Record sprint velocity data
     collect-learnings.sh                # Aggregate ACE entries across sprints
   docs/
     plan.md                             # Design document + architecture reference
