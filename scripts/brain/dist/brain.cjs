@@ -3398,7 +3398,7 @@ var workflow_default = {
               resumeAt: "PHASE 1 \u2014 resume ceremonies (check which ceremony is next)",
               roles: "architect, data-engineer, qa-engineer, security-reviewer, tech-writer",
               conditionalRoles: {
-                has_ai_ml: "applied-ai-engineer",
+                has_ai_ml: "applied-ai-engineer, prompt-engineer",
                 has_analytics: "data-scientist",
                 has_frontend_ui: "ux-ui-designer"
               },
@@ -3494,7 +3494,7 @@ var workflow_default = {
                   resumeAt: "SUB-PHASE A: BUILD \u2014 spawn dev teammates (A.1)",
                   roles: "dev-1, dev-2",
                   conditionalRoles: {
-                    has_ai_ml: "applied-ai-engineer (if AI stories in sprint)",
+                    has_ai_ml: "applied-ai-engineer, prompt-engineer (if AI stories in sprint)",
                     has_frontend_ui: "ux-ui-designer (if UI stories in sprint)",
                     has_analytics: "data-scientist (if analytics stories in sprint)"
                   },
@@ -3536,7 +3536,7 @@ var workflow_default = {
                   roles: "qa-engineer, security-reviewer, performance-reviewer, code-reviewer",
                   extraRoles: "data-engineer (if data-heavy)",
                   conditionalRoles: {
-                    has_ai_ml: "applied-ai-engineer",
+                    has_ai_ml: "applied-ai-engineer, prompt-engineer",
                     has_analytics: "data-scientist",
                     has_frontend_ui: "ux-ui-designer"
                   },
@@ -3610,8 +3610,8 @@ var workflow_default = {
               meta: {
                 nav: {
                   loadFile: "phases/phase2-sprints.md",
-                  resumeAt: "SPRINT REVIEW \u2014 lead + architect + SM assess GO/NO-GO (SR.1)",
-                  roles: "architect, scrum-master (both should be active)",
+                  resumeAt: "SPRINT REVIEW \u2014 lead + architect + SM + PM assess GO/NO-GO (SR.1)",
+                  roles: "architect, scrum-master, product-manager (all three should be active)",
                   artifactRef: "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   meaning: "Architecture review passed or fixes applied",
                   previous: "sprint_arch_review"
@@ -3628,8 +3628,8 @@ var workflow_default = {
               meta: {
                 nav: {
                   loadFile: "phases/phase2-sprints.md",
-                  resumeAt: "SPRINT RETROSPECTIVE \u2014 collect retro input from architect + SM (T.1). NOTE: dev and reviewer retro input was already collected in A.5b and B.5b.",
-                  roles: "architect, scrum-master (should be active; devs/reviewers already shut down but gave retro input pre-shutdown)",
+                  resumeAt: "SPRINT RETROSPECTIVE \u2014 collect retro input from architect + SM (T.1). NOTE: dev, reviewer, and PM retro input was already collected in A.5b, B.5b, and SR.5.",
+                  roles: "architect, scrum-master (should be active; devs/reviewers shut down in A.6/B.6, PM shut down in SR.5 \u2014 all gave retro input pre-shutdown)",
                   artifactRef: "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   meaning: "GO/NO-GO decision made by lead",
                   previous: "sprint_arch_done"
@@ -3661,7 +3661,7 @@ var workflow_default = {
                   resumeAtIfNoStories: "PHASE 3: RELEASE \u2014 in SKILL.md (re-read if needed)",
                   loadFileIfStories: "phases/phase2-sprints.md",
                   roles: "(all shut down \u2014 next phase spawns fresh)",
-                  lifecycleBeforeAdvancing: "Before advancing: shut down architect (T.5). PM was shut down after Refinement (R.5). SM: stays alive if routing to refinement/planning; shut down if routing to release (product_backlog_count=0).",
+                  lifecycleBeforeAdvancing: "Before advancing: shut down architect (T.5). PM was shut down after Sprint Review (SR.5). SM: stays alive if routing to refinement/planning; shut down if routing to release (product_backlog_count=0).",
                   meaning: "Retrospective compiled, ACE learnings aggregated. Execute T.4a-T.4f checklist: update backlog, check epic status, brain event, record velocity, check refinement, route.",
                   previous: "sprint_review_done"
                 }
@@ -3684,7 +3684,7 @@ var workflow_default = {
           meta: {
             nav: {
               resumeAt: "PHASE 3: RELEASE \u2014 continue from release_started in SKILL.md",
-              roles: "release-engineer, tech-writer",
+              roles: "release-engineer, tech-writer, product-manager",
               meaning: "Phase 3 entered \u2014 release teammates being spawned",
               previous: "sprint_retro_done"
             }
