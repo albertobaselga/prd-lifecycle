@@ -4,8 +4,8 @@
 
 | Role | Lifecycle | Spawn Point | Shutdown Point |
 |------|-----------|-------------|----------------|
-| Scrum Master (SM) | Long-lived | First Refinement | Before Release |
-| Product Manager (PM) | Per-cycle | Refinement start | After Sprint Review |
+| Scrum Master (SM) | Long-lived | First Refinement (R.1) | T.5 when routing to Release |
+| Product Manager (PM) | Per-cycle | Refinement start | After Refinement validation (R.5) |
 | Developers (dev-1, dev-2) | Per-sprint | BUILD sub-phase | After BUILD complete |
 | Reviewers (qa, security, etc.) | Per-sprint | VERIFY sub-phase | After VERIFY complete |
 | Architect | Per-sprint | ARCH REVIEW sub-phase | After Retro |
@@ -510,13 +510,38 @@ A.5  PAIR REVIEW PROTOCOL
         - After 3 cycles: lead reviews the dispute, makes a binding decision,
           and documents the rationale in the sprint review notes
 
+A.5b COLLECT BUILD RETRO INPUT (before shutdown)
+
+     Before shutting down build teammates, collect their retrospective input.
+     This ensures dev perspectives are captured for the sprint retro (T.2).
+
+     Send to each build teammate (dev-1, dev-2, data-engineer if present,
+     or conditional specialist if present):
+
+     SendMessage(type="message", recipient="{build-teammate}",
+       content="SPRINT RETRO INPUT (pre-shutdown): Before you shut down,
+       share your retrospective for this sprint:
+       - What worked well during implementation?
+       - What was harder than expected?
+       - What should we do differently next sprint?
+       Format: ## [strategy] {title}: {description}
+       and/or: ## [pitfall] {title}: {description}",
+       summary="Collect retro input before shutdown")
+
+     Wait for all build teammates to respond via SendMessage.
+     Store their retro inputs for use in T.2 (compile retro).
+
 A.6  SHUTDOWN BUILD TEAMMATES
 
-     Once all PAIR-REVIEW tasks are complete (all approved):
+     Once all PAIR-REVIEW tasks are complete (all approved) and retro input
+     collected (A.5b):
      SendMessage(type="shutdown_request", recipient="dev-1", content="Build phase complete.")
      SendMessage(type="shutdown_request", recipient="dev-2", content="Build phase complete.")
      If data-engineer was spawned:
      SendMessage(type="shutdown_request", recipient="data-engineer", content="Build phase complete.")
+     If conditional specialist was spawned (applied-ai-engineer, ux-ui-designer,
+     or data-scientist):
+     SendMessage(type="shutdown_request", recipient="{specialist}", content="Build phase complete.")
 
      Wait for shutdown confirmations (responses arrive as new conversation
      turns). Track which teammates have confirmed shutdown.
@@ -776,8 +801,15 @@ B.4  COLLECT REPORTS AND TRIAGE
             summary="Targeted re-verification request")
         - Wait for reviewer's SendMessage response
 
+        After each successful re-verification (or after all fix cycles for a finding):
+        - If dev-fix was spawned (Cycle 2+), shut it down immediately:
+          SendMessage(type="shutdown_request", recipient="dev-fix",
+            content="Fix verified. Shutting down.")
+          Wait for confirmation before proceeding to the next finding.
+
         - Maximum 3 fix-verify cycles per finding
-        - If not resolved after 3 cycles: escalate to user via AskUserQuestion
+        - If not resolved after 3 cycles: shut down dev-fix (if spawned),
+          then escalate to user via AskUserQuestion
 
      b) HIGH findings: Should be fixed. Follow same process as CRITICAL.
 
@@ -794,13 +826,41 @@ B.5  GATE: VERIFY + REVIEW PASS
      - Build succeeds
      - Type checking passes (zero errors)
 
+B.5b COLLECT REVIEWER RETRO INPUT (before shutdown)
+
+     Before shutting down reviewers, collect their retrospective input.
+     This ensures reviewer perspectives are captured for the sprint retro (T.2).
+
+     Send to each reviewer (qa-engineer, security-reviewer, performance-reviewer,
+     code-reviewer, data-engineer if present):
+
+     SendMessage(type="message", recipient="{reviewer}",
+       content="SPRINT RETRO INPUT (pre-shutdown): Before you shut down,
+       share your retrospective for this sprint:
+       - What code quality patterns did you observe (good or bad)?
+       - Were the specs/architecture docs adequate for review?
+       - What recurring issues should the team address?
+       Format: ## [strategy] {title}: {description}
+       and/or: ## [pitfall] {title}: {description}",
+       summary="Collect retro input before shutdown")
+
+     Wait for all reviewers to respond via SendMessage.
+     Store their retro inputs for use in T.2 (compile retro).
+
+     If conditional specialist reviewers were spawned, collect their retro
+     input before shutting them down as well (same format).
+
 B.6  SHUTDOWN REVIEW TEAMMATES (except any needed for arch review)
 
-     Shutdown: qa-engineer, security-reviewer, performance-reviewer, code-reviewer
-     and data-engineer (if present).
+     Shutdown core reviewers:
+     SendMessage(type="shutdown_request") to: qa-engineer, security-reviewer,
+     performance-reviewer, code-reviewer, and data-engineer (if present).
+     Wait for all shutdown confirmations.
 
-     If architect is needed for Sub-Phase C and a slot is available, keep one
-     reviewer slot open.
+     Shutdown conditional specialist reviewers (if spawned in this sprint):
+     SendMessage(type="shutdown_request") to any of: applied-ai-engineer,
+     data-scientist, ux-ui-designer that were spawned for the second
+     verification wave. Wait for all shutdown confirmations.
 
      NEXT: Sub-Phase C — Architecture Review. Spawn the architect as a team
      agent via Task(team_name=...). See C.1.
@@ -871,49 +931,64 @@ C.4  GATE: ARCHITECTURE REVIEW PASS
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
 ----------------------------------------------------------------------------
-SPRINT REVIEW
+SPRINT REVIEW (Team: TL + architect + SM)
 ----------------------------------------------------------------------------
 
-R.1  GATHER ALL CURRENT TEAMMATES
+SR.1  GATHER ACTIVE TEAMMATES
 
-     At this point, only the architect should be active. The lead conducts the
-     sprint review.
+     At this point, the architect and scrum-master should be active.
+     The lead conducts the sprint review with both.
 
-R.2  PRESENT SUMMARY
+SR.2  PRESENT SUMMARY
 
-     Send to architect via SendMessage:
-     "SPRINT REVIEW: Sprint {n} for stories from epics {epic-id-list} is complete.
-     Summary of results:
-     - QA: {verdict} ({N} findings)
-     - Security: {verdict} ({N} findings)
-     - Performance: {verdict} ({N} findings)
-     - Code Quality: {verdict} ({N} findings)
-     - Data Review: {verdict if applicable}
-     - Architecture: {verdict}
-     - Tests: {pass/fail count}
-     - Build: {pass/fail}
-     What is your overall confidence level? Any concerns for future sprints?
-     RESPONSE FORMAT: Respond via SendMessage with your confidence assessment
-     and any concerns inline in the message content."
+     Send to architect AND scrum-master via SendMessage:
 
-     Wait for architect's SendMessage response before proceeding.
+     SendMessage(type="message", recipient="architect",
+       content="SPRINT REVIEW: Sprint {n} for stories from epics {epic-id-list} is complete.
+       Summary of results:
+       - QA: {verdict} ({N} findings)
+       - Security: {verdict} ({N} findings)
+       - Performance: {verdict} ({N} findings)
+       - Code Quality: {verdict} ({N} findings)
+       - Data Review: {verdict if applicable}
+       - Architecture: {verdict}
+       - Tests: {pass/fail count}
+       - Build: {pass/fail}
+       What is your overall confidence level? Any concerns for future sprints?
+       RESPONSE FORMAT: Respond via SendMessage with your confidence assessment
+       and any concerns inline in the message content.",
+       summary="Sprint review — architecture confidence")
 
-R.3  GO / NO-GO DECISION
+     SendMessage(type="message", recipient="scrum-master",
+       content="SPRINT REVIEW: Sprint {n} complete. Planned: {PLANNED_SP} SP,
+       Completed: {COMPLETED_SP} SP. Review verdicts: QA={verdict},
+       Security={verdict}, Performance={verdict}, Code={verdict}, Arch={verdict}.
+       From a process perspective: Was the sprint scope appropriate? Was velocity
+       on track? Any process improvements for the next sprint?
+       RESPONSE FORMAT: Respond via SendMessage with your process assessment.",
+       summary="Sprint review — process assessment")
 
-     Based on all reports and architect feedback, the lead makes a decision:
+     Wait for BOTH architect and scrum-master SendMessage responses before
+     proceeding.
+
+SR.3  GO / NO-GO DECISION
+
+     Based on all reports, architect confidence, and SM process assessment,
+     the lead makes a decision:
 
      GO — All gates passed, no unresolved CRITICAL/HIGH findings.
      NO-GO — Unresolved issues remain. Create targeted fix tasks and re-run
      only the affected sub-phases (do not restart the entire sprint).
 
-R.4  WRITE SPRINT REVIEW
+SR.4  WRITE SPRINT REVIEW
 
      Write to prd-lifecycle/{slug}/sprints/sprint-{n}/review.md:
      - Date, stories covered (with epic references), decision (GO/NO-GO)
      - Summary of each review area
      - Key findings and resolutions
      - Deferred items (if any)
-     - Confidence assessment
+     - Architect confidence assessment
+     - SM process assessment and velocity observations
 
      TRANSITION:
      bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=sprint_review_done
@@ -923,19 +998,37 @@ R.4  WRITE SPRINT REVIEW
 SPRINT RETROSPECTIVE
 ----------------------------------------------------------------------------
 
-T.1  ASK TEAMMATES FOR RETROSPECTIVE INPUT
+T.1  ASK REMAINING TEAMMATES FOR RETROSPECTIVE INPUT
 
-     Send to all active teammates via SendMessage:
-     "SPRINT RETROSPECTIVE: What worked well in this sprint? What didn't?
-     What should we do differently in the next sprint? Format your response as:
-     ## [strategy] {title}: {description}
-     ## [pitfall] {title}: {description}"
+     At this point, architect and scrum-master should be active. Devs and
+     reviewers already provided retro input before shutdown (A.5b and B.5b).
 
-     Wait for all active teammates to respond via SendMessage. Do NOT proceed
-     based on idle status. Track which teammates have responded. Send follow-up
-     after 5 minutes if missing.
+     Send to architect and scrum-master:
 
-T.2  COMPILE RETRO
+     SendMessage(type="message", recipient="architect",
+       content="SPRINT RETROSPECTIVE: What worked well in this sprint?
+       What didn't? What should we do differently next sprint?
+       Format: ## [strategy] {title}: {description}
+       and/or: ## [pitfall] {title}: {description}",
+       summary="Retro input from architect")
+
+     SendMessage(type="message", recipient="scrum-master",
+       content="SPRINT RETROSPECTIVE: From a process perspective, what worked
+       well? What didn't? How was estimation accuracy? Sprint planning quality?
+       Format: ## [strategy] {title}: {description}
+       and/or: ## [pitfall] {title}: {description}",
+       summary="Retro input from scrum-master")
+
+     Wait for both to respond via SendMessage. Send follow-up after 5 minutes
+     if missing.
+
+T.2  COMPILE RETRO (all sources)
+
+     Combine retro inputs from ALL sources:
+     - Build teammates (collected in A.5b before their shutdown)
+     - Reviewers (collected in B.5b before their shutdown)
+     - Architect (collected in T.1)
+     - Scrum Master (collected in T.1)
 
      Write all entries to prd-lifecycle/{slug}/sprints/sprint-{n}/retro.md using the
      format the collect-learnings.sh script expects:
@@ -1044,13 +1137,18 @@ T.5  TEAMMATE LIFECYCLE: SHUTDOWN SPRINT TEAMMATES
 
      Before git commit, manage teammate lifecycle:
 
-     Shutdown architect and any remaining sprint teammates:
+     Shutdown architect:
      SendMessage(type="shutdown_request", recipient="architect", content="Sprint complete.")
-
      Wait for shutdown confirmation.
 
-     The Scrum Master stays alive (long-lived, shuts down before release).
-     The Product Manager should already be shut down (after Sprint Review in R.4).
+     The Product Manager should already be shut down (after Refinement step R.5).
+
+     SM LIFECYCLE — depends on next phase (determined in T.4e):
+     - If routing to REFINEMENT or PLANNING: SM stays alive (long-lived across cycles).
+     - If routing to RELEASE (product_backlog_count=0): shut down SM now.
+       SendMessage(type="shutdown_request", recipient="scrum-master",
+         content="All sprints complete. Release phase begins. Thank you for your service.")
+       Wait for shutdown confirmation.
 
 T.6  GIT COMMIT SPRINT WORK
 

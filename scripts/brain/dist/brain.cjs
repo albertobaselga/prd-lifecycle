@@ -3610,8 +3610,8 @@ var workflow_default = {
               meta: {
                 nav: {
                   loadFile: "phases/phase2-sprints.md",
-                  resumeAt: "SPRINT REVIEW \u2014 lead writes GO/NO-GO (R.1)",
-                  roles: "(lead only \u2014 no teammates needed)",
+                  resumeAt: "SPRINT REVIEW \u2014 lead + architect + SM assess GO/NO-GO (SR.1)",
+                  roles: "architect, scrum-master (both should be active)",
                   artifactRef: "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   meaning: "Architecture review passed or fixes applied",
                   previous: "sprint_arch_review"
@@ -3628,8 +3628,8 @@ var workflow_default = {
               meta: {
                 nav: {
                   loadFile: "phases/phase2-sprints.md",
-                  resumeAt: "SPRINT RETROSPECTIVE \u2014 collect retro input (T.1)",
-                  roles: "(message remaining active teammates)",
+                  resumeAt: "SPRINT RETROSPECTIVE \u2014 collect retro input from architect + SM (T.1). NOTE: dev and reviewer retro input was already collected in A.5b and B.5b.",
+                  roles: "architect, scrum-master (should be active; devs/reviewers already shut down but gave retro input pre-shutdown)",
                   artifactRef: "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   meaning: "GO/NO-GO decision made by lead",
                   previous: "sprint_arch_done"
@@ -3661,7 +3661,7 @@ var workflow_default = {
                   resumeAtIfNoStories: "PHASE 3: RELEASE \u2014 in SKILL.md (re-read if needed)",
                   loadFileIfStories: "phases/phase2-sprints.md",
                   roles: "(all shut down \u2014 next phase spawns fresh)",
-                  lifecycleBeforeAdvancing: "Before advancing: shut down sprint teammates (devs, reviewers, architect). SM stays alive. PM shut down after Sprint Review (if still active). Re-spawn PM at next Refinement if needed.",
+                  lifecycleBeforeAdvancing: "Before advancing: shut down architect (T.5). PM was shut down after Refinement (R.5). SM: stays alive if routing to refinement/planning; shut down if routing to release (product_backlog_count=0).",
                   meaning: "Retrospective compiled, ACE learnings aggregated. Execute T.4a-T.4f checklist: update backlog, check epic status, brain event, record velocity, check refinement, route.",
                   previous: "sprint_review_done"
                 }

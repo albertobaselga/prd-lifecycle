@@ -1291,7 +1291,7 @@ RESUME:
   | sprint_verify_done | execution | Reviews complete | ARCH REVIEW (C.1) |
   | sprint_arch_review | execution | Arch review in progress | Continue C.2-C.4 |
   | sprint_arch_done   | execution | Arch review passed | Sprint REVIEW (R.1) |
-  | sprint_review_done | execution | GO decision made | Sprint RETRO (T.1) |
+  | sprint_review_done | execution | GO decision made | Sprint RETRO (T.1) — note: dev retro collected at A.5b, reviewer retro at B.5b |
   | sprint_retro_done | execution | Retro complete | Next epic or Phase 3 |
   | release_started | release | Phase 3 active | Continue release |
   | release_done | release | Artifacts complete | FINAL steps (F.1) |
