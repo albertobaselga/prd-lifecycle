@@ -28,6 +28,8 @@ export function computeNavigation(snapshot: any, workflowDef: any): NavigationOu
       extraRoles: [],
       meaning: `State ${statePath} not found in workflow definition`,
       previous: '(unknown)',
+      lifecycleBeforeAdvancing: null,
+      artifactRef: null,
     };
   }
 
@@ -42,6 +44,8 @@ export function computeNavigation(snapshot: any, workflowDef: any): NavigationOu
       extraRoles: [],
       meaning: `State ${statePath} has no navigation metadata`,
       previous: '(unknown)',
+      lifecycleBeforeAdvancing: null,
+      artifactRef: null,
     };
   }
 
@@ -56,22 +60,32 @@ export function computeNavigation(snapshot: any, workflowDef: any): NavigationOu
   // 5. Include extraRoles (unconditional additions like data-engineer at build_done)
   const extraRoles: string[] = nav.extraRoles ? [nav.extraRoles] : [];
 
-  // 6. Handle dynamic resume_at (retro_done depends on remaining epics)
+  // 6. Handle dynamic resume_at (retro_done depends on remaining stories)
   let resumeAt = nav.resumeAt;
-  if (nav.resumeAtIfEpics && snapshot.context.epics_remaining.length > 0) {
-    resumeAt = nav.resumeAtIfEpics;
-  } else if (nav.resumeAtIfNoEpics && snapshot.context.epics_remaining.length === 0) {
-    resumeAt = nav.resumeAtIfNoEpics;
+  if (nav.resumeAtIfStories && snapshot.context.product_backlog_count > 0) {
+    resumeAt = nav.resumeAtIfStories;
+  } else if (nav.resumeAtIfNoStories && snapshot.context.product_backlog_count === 0) {
+    resumeAt = nav.resumeAtIfNoStories;
   }
 
-  // 7. Resolve loadFile to absolute path (handle dynamic loadFileIfEpics)
+  // 7. Resolve loadFile to absolute path (handle dynamic loadFileIfStories)
   let rawLoadFile = nav.loadFile || null;
-  if (nav.loadFileIfEpics && snapshot.context.epics_remaining.length > 0) {
-    rawLoadFile = nav.loadFileIfEpics;
+  if (nav.loadFileIfStories && snapshot.context.product_backlog_count > 0) {
+    rawLoadFile = nav.loadFileIfStories;
   }
   const loadFile = rawLoadFile
     ? nodePath.join(SKILL_DIR, rawLoadFile)
     : null;
+
+  // 8. Extract lifecycleBeforeAdvancing (teammate shutdown instructions for retro_done)
+  const lifecycleBeforeAdvancing: string | null = nav.lifecycleBeforeAdvancing || null;
+
+  // 9. Extract artifactRef (sprint-backlog.json path for sprint sub-states)
+  //    Replace {current_sprint} placeholder with actual sprint number
+  let artifactRef: string | null = nav.artifactRef || null;
+  if (artifactRef && snapshot.context.current_sprint != null) {
+    artifactRef = artifactRef.replace('{current_sprint}', String(snapshot.context.current_sprint));
+  }
 
   return {
     loadFile,
@@ -81,5 +95,7 @@ export function computeNavigation(snapshot: any, workflowDef: any): NavigationOu
     extraRoles,
     meaning: nav.meaning,
     previous: nav.previous,
+    lifecycleBeforeAdvancing,
+    artifactRef,
   };
 }

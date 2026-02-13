@@ -1,9 +1,9 @@
 import * as nodePath from 'path';
 import { parseArgs } from './cli.js';
 import { processEvent } from './engine.js';
-import { readState, writeState, initializeProject, isLegacyFormat } from './persistence.js';
+import { readState, writeState, initializeProject, validateInstance, listInstances } from './persistence.js';
 import { computeNavigation } from './navigation.js';
-import { renderNavigationBox, renderNoStateBox, renderErrorBox } from './output.js';
+import { renderNavigationBox, renderNoStateBox, renderErrorBox, renderInstanceList } from './output.js';
 import { createLogger } from './logger.js';
 import { stateValueToPath, resolveStateNode, findNearestAncestor } from './utils.js';
 import workflowDef from '../../../workflow.json';
@@ -12,9 +12,28 @@ function main(): void {
   const args = process.argv.slice(2);
   const parsed = parseArgs(args);
   const projectRoot = nodePath.resolve(parsed.projectRoot);
-  const logger = createLogger(projectRoot);
+  const instance = parsed.instance || undefined;
 
-  logger.log(`INVOKE mode=${parsed.mode} args=[${args.join(' ')}]`);
+  // --- LIST MODE (no validation needed, exits immediately) ---
+  if (parsed.mode === 'list') {
+    const instances = listInstances(projectRoot);
+    console.log(renderInstanceList(instances));
+    process.exit(0);
+  }
+
+  // --- VALIDATE INSTANCE (before any path operation, including logger) [FIX-2, FIX-8] ---
+  if (instance) {
+    try {
+      validateInstance(instance);
+    } catch (err: any) {
+      console.error(renderErrorBox('Invalid Instance', err.message));
+      process.exit(1);
+    }
+  }
+
+  // --- LOGGER (safe: instance is validated) ---
+  const logger = createLogger(projectRoot, instance);
+  logger.log(`INVOKE mode=${parsed.mode} instance=${instance || '(none)'} args=[${args.join(' ')}]`);
 
   // Log ignored fields
   if (parsed.ignoredFields.length > 0) {
@@ -23,13 +42,21 @@ function main(): void {
 
   // --- INIT MODE ---
   if (parsed.mode === 'init') {
+    if (!instance) {
+      console.error(renderErrorBox(
+        'Missing Instance',
+        'The instance= parameter is required for --init.',
+        'Usage: brain . instance={slug} --init',
+      ));
+      process.exit(1);
+    }
     try {
-      initializeProject(projectRoot, workflowDef);
+      initializeProject(projectRoot, workflowDef, instance);
       logger.log('INIT scaffold created');
       // Read back the initialized state and show navigation
-      const snapshot = readState(projectRoot);
+      const snapshot = readState(projectRoot, instance);
       const nav = computeNavigation(snapshot, workflowDef);
-      console.log(renderNavigationBox(snapshot, nav, projectRoot));
+      console.log(renderNavigationBox(snapshot, nav, projectRoot, instance));
       process.exit(0);
     } catch (err: any) {
       if (err.message?.includes('already exists')) {
@@ -44,7 +71,7 @@ function main(): void {
   // --- READ STATE ---
   let snapshot: any;
   try {
-    snapshot = readState(projectRoot);
+    snapshot = readState(projectRoot, instance);
   } catch (err: any) {
     console.error(renderErrorBox('Corrupt State', `Failed to parse state.json: ${err.message}`));
     process.exit(1);
@@ -52,13 +79,20 @@ function main(): void {
 
   // --- NO STATE (without --init) ---
   if (snapshot === null) {
-    console.log(renderNoStateBox());
+    console.log(renderNoStateBox(instance));
     process.exit(0);
   }
 
   // Note: legacy format migration is handled automatically by readState().
   // If the file was in the old brain.sh flat format, readState() converted
   // it to XState snapshot format and persisted the migrated version.
+
+  // --- CONTEXT SYNC [FIX-10] ---
+  // When CLI has instance=my-api but state.json's context.instance is stale/empty
+  if (instance && snapshot.context.instance !== instance) {
+    snapshot.context.instance = instance;
+    writeState(projectRoot, snapshot, instance);
+  }
 
   // --- VALIDATE STATE PATH ---
   const statePath = stateValueToPath(snapshot.value);
@@ -78,7 +112,7 @@ function main(): void {
   if (parsed.mode === 'orient') {
     const nav = computeNavigation(snapshot, workflowDef);
     logger.log(`NAVIGATE orient ${statePath}`);
-    console.log(renderNavigationBox(snapshot, nav, projectRoot));
+    console.log(renderNavigationBox(snapshot, nav, projectRoot, instance));
     process.exit(0);
   }
 
@@ -102,14 +136,14 @@ function main(): void {
   }
 
   // --- PERSIST ---
-  writeState(projectRoot, result.snapshot);
+  writeState(projectRoot, result.snapshot, instance);
   const newPath = stateValueToPath(result.snapshot.value);
   logger.log(`STATE_AFTER ${newPath}`);
 
   // --- OUTPUT ---
   const nav = computeNavigation(result.snapshot, workflowDef);
   logger.log(`NAVIGATE transition ${newPath}`);
-  console.log(renderNavigationBox(result.snapshot, nav, projectRoot));
+  console.log(renderNavigationBox(result.snapshot, nav, projectRoot, instance));
   process.exit(0);
 }
 

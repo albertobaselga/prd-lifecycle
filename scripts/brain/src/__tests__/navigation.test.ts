@@ -5,15 +5,14 @@ import type { BrainContext } from '../types.js';
 
 function defaultContext(): BrainContext {
   return {
+    instance: '',
     team_name: 'test',
     current_sprint: 0,
-    current_epic: '',
-    epics_completed: [],
-    epics_remaining: [],
     has_ai_ml: false,
     has_analytics: false,
     has_frontend_ui: false,
     created_at: '2026-01-01T00:00:00Z',
+    product_backlog_count: 0,
   };
 }
 
@@ -21,9 +20,7 @@ function sprintContext(): BrainContext {
   return {
     ...defaultContext(),
     current_sprint: 1,
-    current_epic: 'E1',
-    epics_remaining: ['E1', 'E2'],
-    epics_completed: [],
+    product_backlog_count: 5,
   };
 }
 
@@ -42,10 +39,23 @@ describe('computeNavigation', () => {
     expect(nav.previous).toBe('(start)');
   });
 
+  it('returns correct nav for specification.init with null artifactRef', () => {
+    const snapshot = makeSnapshot({ specification: 'init' });
+    const nav = computeNavigation(snapshot, workflow);
+    expect(nav.artifactRef).toBeNull();
+  });
+
   it('returns loadFile for execution.sprint.build', () => {
     const snapshot = makeSnapshot({ execution: { sprint: 'build' } }, sprintContext());
     const nav = computeNavigation(snapshot, workflow);
     expect(nav.loadFile).toContain('phase2-sprints.md');
+  });
+
+  it('returns non-null artifactRef at execution.sprint.build', () => {
+    const snapshot = makeSnapshot({ execution: { sprint: 'build' } }, sprintContext());
+    const nav = computeNavigation(snapshot, workflow);
+    expect(nav.artifactRef).not.toBeNull();
+    expect(nav.artifactRef).toContain('sprint-backlog');
   });
 
   it('includes conditional roles when domain flags set', () => {
@@ -67,24 +77,48 @@ describe('computeNavigation', () => {
     expect(nav.extraRoles[0]).toContain('data-engineer');
   });
 
-  it('handles dynamic resume_at for retro_done with epics', () => {
+  it('handles dynamic resume_at for retro_done with stories', () => {
     const snapshot = makeSnapshot(
       { execution: { sprint: 'retro_done' } },
-      { ...sprintContext(), epics_remaining: ['E2'] },
+      { ...sprintContext(), product_backlog_count: 5 },
     );
     const nav = computeNavigation(snapshot, workflow);
-    expect(nav.resumeAt).toContain('next sprint');
+    expect(nav.resumeAt).toMatch(/retro-transition|T\.4a/);
     expect(nav.loadFile).toContain('phase2-sprints.md');
   });
 
-  it('handles dynamic resume_at for retro_done without epics', () => {
+  it('handles dynamic resume_at for retro_done without stories', () => {
     const snapshot = makeSnapshot(
       { execution: { sprint: 'retro_done' } },
-      { ...sprintContext(), epics_remaining: [] },
+      { ...sprintContext(), product_backlog_count: 0 },
     );
     const nav = computeNavigation(snapshot, workflow);
     expect(nav.resumeAt).toContain('RELEASE');
     expect(nav.loadFile).toBeNull();
+  });
+
+  it('includes lifecycleBeforeAdvancing at retro_done', () => {
+    const snapshot = makeSnapshot(
+      { execution: { sprint: 'retro_done' } },
+      { ...sprintContext(), product_backlog_count: 5 },
+    );
+    const nav = computeNavigation(snapshot, workflow);
+    expect(nav.lifecycleBeforeAdvancing).not.toBeNull();
+    expect(nav.lifecycleBeforeAdvancing).toContain('shut down');
+  });
+
+  it('returns loadFile for execution.refinement', () => {
+    const snapshot = makeSnapshot({ execution: 'refinement' }, sprintContext());
+    const nav = computeNavigation(snapshot, workflow);
+    expect(nav.loadFile).toContain('phase2-sprints.md');
+    expect(nav.resumeAt).toContain('REFINEMENT');
+  });
+
+  it('returns loadFile for execution.sprint_planning', () => {
+    const snapshot = makeSnapshot({ execution: 'sprint_planning' }, sprintContext());
+    const nav = computeNavigation(snapshot, workflow);
+    expect(nav.loadFile).toContain('phase2-sprints.md');
+    expect(nav.resumeAt).toContain('SPRINT PLANNING');
   });
 
   it('returns correct nav for completed state', () => {
@@ -95,12 +129,12 @@ describe('computeNavigation', () => {
   });
 });
 
-// --- All 19 leaf states coverage ---
+// --- All 20 leaf states coverage ---
 
 const ALL_LEAF_PATHS = [
   'specification.init', 'specification.scaffold_complete', 'specification.domains_detected',
   'specification.phase1_spawned', 'specification.ceremony1_complete', 'specification.ceremony2_complete',
-  'execution.phase1_complete', 'execution.sprint.setup', 'execution.sprint.build',
+  'execution.refinement', 'execution.sprint_planning', 'execution.sprint.setup', 'execution.sprint.build',
   'execution.sprint.build_done', 'execution.sprint.verify', 'execution.sprint.verify_done',
   'execution.sprint.arch_review', 'execution.sprint.arch_done', 'execution.sprint.review_done',
   'execution.sprint.retro_done', 'release.release_started', 'release.release_done', 'completed',
@@ -114,7 +148,7 @@ function pathToValue(dotPath: string): any {
   throw new Error(`Unexpected depth: ${dotPath}`);
 }
 
-describe('navigation coverage — all 19 leaf states', () => {
+describe('navigation coverage — all 20 leaf states', () => {
   ALL_LEAF_PATHS.forEach(statePath => {
     it(`produces valid navigation for ${statePath}`, () => {
       const snapshot = {
@@ -122,8 +156,7 @@ describe('navigation coverage — all 19 leaf states', () => {
         context: {
           ...defaultContext(),
           current_sprint: 1,
-          current_epic: 'E1',
-          epics_remaining: ['E1'],
+          product_backlog_count: 5,
         },
       };
       const nav = computeNavigation(snapshot, workflow);

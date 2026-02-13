@@ -1,0 +1,86 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderNavigationBox > snapshot: full navigation output structure 1`] = `
+"# BRAIN — Navigation
+
+## Position
+Phase: execution
+Step: sprint_build
+Team: prd-snap-test
+Instance: snap-test
+Sprint: 2
+Backlog: 8 stories remaining
+
+## Came From
+Previous: sprint_setup
+Meaning: Sprint setup complete
+
+## Go To
+Load: /nonexistent/brain-snapshot-test-path.md
+WARNING: Load file not found!
+Resume at: SUB-PHASE A: BUILD
+Roles: dev-1, dev-2
+Conditional: applied-ai-engineer
+Extra: data-engineer
+
+## Sprint Progress
+Step 2 / 9
+
+## Progress
+Backlog: 8 stories remaining
+Domains: AI/ML=false Analytics=true Frontend=true
+
+## Artifacts
+Artifact dir: prd-lifecycle/snap-test/
+epics.json: not found
+backlog.json: not found
+sprint-2/: not found
+
+## Protocol
+1. Read the file shown in Load
+2. Jump to the section shown in Resume at
+3. Follow instructions from that point
+4. After each sub-step: run brain with new state
+5. If confused or after compaction: run brain (no args)
+
+---
+
+## LEAD CHEATSHEET
+
+### Your Role
+You are the ORCHESTRATOR. You NEVER write code yourself.
+You delegate ALL work to teammates and make binding decisions.
+
+### Team API
+
+To spawn a teammate (assign work to a specialist):
+  Task(team_name="prd-snap-test", name="role", subagent_type="general-purpose", prompt="preamble+task")
+  Always include: role preamble + learnings.md + artifact dir + SendMessage response protocol
+  Artifact dir: prd-lifecycle/snap-test/
+
+To message a teammate (communicate directly):
+  SendMessage(type="message", recipient="NAME", content="...", summary="5-10 words")
+
+To notify all teammates (use sparingly — costs scale with team size):
+  SendMessage(type="broadcast", content="...", summary="5-10 words")
+
+To shut down a teammate (end their session gracefully):
+  SendMessage(type="shutdown_request", recipient="NAME")
+  Then wait for their shutdown_response before proceeding
+
+To create a task (track work in shared list):
+  TaskCreate(subject="...", description="...", activeForm="...ing")
+
+To assign a task (give ownership to teammate):
+  TaskUpdate(taskId="ID", owner="NAME")
+
+To check all tasks (see progress and blockers):
+  TaskList()
+
+### Your Rules
+- Your plain text output is INVISIBLE to teammates → ALWAYS use SendMessage
+- Include role preamble + learnings.md in EVERY teammate spawn prompt
+- Transition handshake: VERIFY → UPDATE → ORIENT → LOAD → EXECUTE
+- Max iterations: 3 ceremony rounds, 3 fix cycles, 5 QA cycles
+- If confused or after compaction → run brain (no args) immediately"
+`;

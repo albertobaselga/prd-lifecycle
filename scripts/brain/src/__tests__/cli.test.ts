@@ -8,15 +8,51 @@ describe('CLI parser', () => {
     expect(result.mode).toBe('transition');
   });
 
-  it('maps step=sprint_retro_done + add-completed=E1 to RETRO_DONE with epicId', () => {
-    const result = parseArgs(['.', 'add-completed=E1', 'step=sprint_retro_done']);
-    expect(result.event).toEqual({ type: 'RETRO_DONE', epicId: 'E1' });
+  it('maps step=sprint_retro_done to RETRO_DONE (no payload)', () => {
+    const result = parseArgs(['.', 'step=sprint_retro_done']);
+    expect(result.event).toEqual({ type: 'RETRO_DONE' });
   });
 
-  it('maps step=sprint_setup + current_epic=E1 to START_SPRINT with epicId', () => {
-    const result = parseArgs(['.', 'current_epic=E1', 'step=sprint_setup']);
-    expect(result.event!.type).toBe('START_SPRINT');
-    expect((result.event as any).epicId).toBe('E1');
+  it('maps step=refinement_done to REFINEMENT_DONE', () => {
+    const result = parseArgs(['.', 'step=refinement_done']);
+    expect(result.event).toEqual({ type: 'REFINEMENT_DONE' });
+  });
+
+  it('maps step=sprint_planning_done to PLANNING_DONE', () => {
+    const result = parseArgs(['.', 'step=sprint_planning_done']);
+    expect(result.event).toEqual({ type: 'PLANNING_DONE' });
+  });
+
+  it('maps step=start_refinement with product_backlog_count to START_REFINEMENT', () => {
+    const result = parseArgs(['.', 'step=start_refinement', 'product_backlog_count=5']);
+    expect(result.event).toEqual({ type: 'START_REFINEMENT', product_backlog_count: 5 });
+  });
+
+  it('maps step=start_planning with product_backlog_count to START_PLANNING', () => {
+    const result = parseArgs(['.', 'step=start_planning', 'product_backlog_count=5']);
+    expect(result.event).toEqual({ type: 'START_PLANNING', product_backlog_count: 5 });
+  });
+
+  it('maps step=phase1_complete with product_backlog_count to PHASE1_COMPLETE', () => {
+    const result = parseArgs(['.', 'step=phase1_complete', 'product_backlog_count=42']);
+    expect(result.event).toEqual({ type: 'PHASE1_COMPLETE', product_backlog_count: 42 });
+  });
+
+  it('maps step=release_started with product_backlog_count to START_RELEASE', () => {
+    const result = parseArgs(['.', 'step=release_started', 'product_backlog_count=0']);
+    expect(result.event).toEqual({ type: 'START_RELEASE', product_backlog_count: 0 });
+  });
+
+  it('maps step=ceremony2_complete to CEREMONY2_COMPLETE (no payload)', () => {
+    const result = parseArgs(['.', 'step=ceremony2_complete']);
+    expect(result.event).toEqual({ type: 'CEREMONY2_COMPLETE' });
+  });
+
+  it('coerces product_backlog_count to number', () => {
+    const result = parseArgs(['.', 'step=phase1_complete', 'product_backlog_count=12']);
+    expect(result.event!.type).toBe('PHASE1_COMPLETE');
+    expect((result.event as any).product_backlog_count).toBe(12);
+    expect(typeof (result.event as any).product_backlog_count).toBe('number');
   });
 
   it('coerces has_ai_ml=true to boolean', () => {
@@ -32,12 +68,6 @@ describe('CLI parser', () => {
     expect((result.event as any).has_analytics).toBe(false);
   });
 
-  it('parses JSON arrays for epics_remaining', () => {
-    const result = parseArgs(['.', 'epics_remaining=["E1","E2"]', 'step=ceremony2_complete']);
-    expect(result.event!.type).toBe('CEREMONY2_COMPLETE');
-    expect((result.event as any).epics_remaining).toEqual(['E1', 'E2']);
-  });
-
   it('returns orient mode when no step= (just project path)', () => {
     const result = parseArgs(['.']);
     expect(result.mode).toBe('orient');
@@ -51,15 +81,9 @@ describe('CLI parser', () => {
   });
 
   it('silently ignores phase= key', () => {
-    const result = parseArgs(['.', 'phase=execution', 'step=phase1_complete']);
+    const result = parseArgs(['.', 'phase=execution', 'step=phase1_complete', 'product_backlog_count=10']);
     expect(result.event!.type).toBe('PHASE1_COMPLETE');
     expect(result.ignoredFields).toContain('phase');
-  });
-
-  it('silently ignores current_sprint= at retro_done', () => {
-    const result = parseArgs(['.', 'current_sprint=2', 'add-completed=E1', 'step=sprint_retro_done']);
-    expect(result.event!.type).toBe('RETRO_DONE');
-    expect(result.ignoredFields).toContain('current_sprint');
   });
 
   it('maps typed event syntax: BUILD_STARTED', () => {
@@ -68,13 +92,8 @@ describe('CLI parser', () => {
     expect(result.mode).toBe('transition');
   });
 
-  it('maps typed event syntax with payload: START_SPRINT epicId=E3', () => {
-    const result = parseArgs(['.', 'START_SPRINT', 'epicId=E3']);
-    expect(result.event).toEqual({ type: 'START_SPRINT', epicId: 'E3' });
-  });
-
   it('maps step=release_started to START_RELEASE', () => {
-    const result = parseArgs(['.', 'phase=release', 'step=release_started']);
+    const result = parseArgs(['.', 'phase=release', 'step=release_started', 'product_backlog_count=0']);
     expect(result.event!.type).toBe('START_RELEASE');
   });
 
@@ -136,5 +155,43 @@ describe('CLI parser', () => {
     const result = parseArgs(['/tmp/proj', 'step=phase1_spawned']);
     expect(result.projectRoot).toBe('/tmp/proj');
     expect(result.event!.type).toBe('PHASE1_SPAWNED');
+  });
+
+  // --- Instance parameter and --list mode ---
+
+  it('extracts instance= and returns it in ParseResult', () => {
+    const result = parseArgs(['.', 'instance=my-api', 'step=scaffold_complete', 'team_name=x']);
+    expect(result.instance).toBe('my-api');
+    expect(result.event!.type).toBe('SCAFFOLD_COMPLETE');
+    expect((result.event as any).instance).toBeUndefined(); // FIX-1: no leak
+  });
+
+  it('returns mode list for --list flag', () => {
+    const result = parseArgs(['--list']);
+    expect(result.mode).toBe('list');
+    expect(result.instance).toBeNull();
+  });
+
+  it('--list takes precedence over --init', () => {
+    const result = parseArgs(['.', '--list', '--init']);
+    expect(result.mode).toBe('list');
+  });
+
+  it('instance= is available for --init mode', () => {
+    const result = parseArgs(['.', 'instance=my-api', '--init']);
+    expect(result.mode).toBe('init');
+    expect(result.instance).toBe('my-api');
+  });
+
+  it('instance= is available for orient mode', () => {
+    const result = parseArgs(['.', 'instance=my-api']);
+    expect(result.mode).toBe('orient');
+    expect(result.instance).toBe('my-api');
+  });
+
+  it('instance= does not appear in ignoredFields (extracted before event loop)', () => {
+    const result = parseArgs(['.', 'instance=my-api', 'step=scaffold_complete']);
+    // instance is extracted early, before event building — not reported as ignored
+    expect(result.ignoredFields).not.toContain('instance');
   });
 });

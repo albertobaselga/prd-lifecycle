@@ -1,8 +1,9 @@
 import * as fs from 'fs';
 import * as nodePath from 'path';
+import { getStateDir } from './persistence.js';
 
-export function createLogger(projectRoot: string) {
-  const logFile = nodePath.join(projectRoot, 'prd-lifecycle/brain.log');
+export function createLogger(projectRoot: string, instance?: string) {
+  const logFile = nodePath.join(projectRoot, getStateDir(instance), 'brain.log');
 
   return {
     log(message: string): void {

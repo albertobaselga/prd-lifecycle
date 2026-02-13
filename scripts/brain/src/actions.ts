@@ -19,27 +19,11 @@ export const actions = {
     has_frontend_ui: ({ event }: { event: any }) => event.has_frontend_ui,
   }),
 
-  assignEpicsRemaining: assign({
-    epics_remaining: ({ event }: { event: any }) => event.epics_remaining,
-  }),
-
-  assignCurrentEpic: assign({
-    current_epic: ({ event }: { event: any }) => event.epicId,
-  }),
-
   incrementSprint: assign({
     current_sprint: ({ context }: { context: any }) => context.current_sprint + 1,
   }),
 
-  // Idempotent: safe to call if epicId already in completed list
-  completeEpic: assign(({ context, event }: { context: any; event: any }) => ({
-    epics_completed: context.epics_completed.includes(event.epicId)
-      ? context.epics_completed
-      : [...context.epics_completed, event.epicId],
-    epics_remaining: context.epics_remaining.filter((e: string) => e !== event.epicId),
-  })),
-
-  clearCurrentEpic: assign({
-    current_epic: () => '',
+  updateBacklogCount: assign({
+    product_backlog_count: ({ event }: { event: any }) => event.product_backlog_count,
   }),
 };

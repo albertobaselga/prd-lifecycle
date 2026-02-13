@@ -48,9 +48,9 @@ function findLeafStatesWithoutNav(node: any, path = ''): string[] {
 // --- Tests ---
 
 describe('workflow.json', () => {
-  it('has exactly 19 leaf states', () => {
+  it('has exactly 20 leaf states', () => {
     const count = countLeafStates(workflow);
-    expect(count).toBe(19);
+    expect(count).toBe(20);
   });
 
   it('has no "always" keys (compass invariant)', () => {

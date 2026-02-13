@@ -4,10 +4,12 @@ import type { BrainEvent } from './types.js';
 const TYPED_EVENTS = new Set([
   'SCAFFOLD_COMPLETE', 'DOMAINS_DETECTED', 'PHASE1_SPAWNED',
   'CEREMONY1_COMPLETE', 'CEREMONY2_COMPLETE', 'PHASE1_COMPLETE',
-  'START_SPRINT', 'BUILD_STARTED', 'BUILD_DONE',
+  'REFINEMENT_DONE', 'PLANNING_DONE',
+  'BUILD_STARTED', 'BUILD_DONE',
   'VERIFY_STARTED', 'VERIFY_DONE', 'ARCH_REVIEW_STARTED',
   'ARCH_DONE', 'REVIEW_DONE', 'RETRO_DONE',
-  'START_RELEASE', 'RELEASE_DONE', 'LIFECYCLE_COMPLETE',
+  'START_REFINEMENT', 'START_PLANNING', 'START_RELEASE',
+  'RELEASE_DONE', 'LIFECYCLE_COMPLETE',
 ]);
 
 // step= value → event type mapping
@@ -18,7 +20,10 @@ const STEP_TO_EVENT: Record<string, string> = {
   ceremony1_complete: 'CEREMONY1_COMPLETE',
   ceremony2_complete: 'CEREMONY2_COMPLETE',
   phase1_complete: 'PHASE1_COMPLETE',
-  sprint_setup: 'START_SPRINT',
+  refinement_done: 'REFINEMENT_DONE',
+  sprint_planning_done: 'PLANNING_DONE',
+  start_refinement: 'START_REFINEMENT',
+  start_planning: 'START_PLANNING',
   sprint_build: 'BUILD_STARTED',
   sprint_build_done: 'BUILD_DONE',
   sprint_verify: 'VERIFY_STARTED',
@@ -33,16 +38,26 @@ const STEP_TO_EVENT: Record<string, string> = {
 };
 
 // Fields silently ignored by the machine (backward compatibility)
-const IGNORED_FIELDS = new Set(['phase', 'current_sprint', 'current_epic']);
+// 'instance' is in this set as a safety net [FIX-1] — primary defense is early extraction
+const IGNORED_FIELDS = new Set(['phase', 'current_sprint', 'instance']);
+
+// Fields that should be coerced to number when present
+const NUMERIC_FIELDS = new Set(['product_backlog_count']);
 
 export interface ParseResult {
   projectRoot: string;
-  mode: 'orient' | 'init' | 'transition';
+  mode: 'orient' | 'init' | 'transition' | 'list';
+  instance: string | null;
   event: BrainEvent | null;
   ignoredFields: string[];
 }
 
-function coerceValue(raw: string): string | number | boolean | unknown {
+function coerceValue(raw: string, key?: string): string | number | boolean | unknown {
+  // Force numeric fields to number
+  if (key && NUMERIC_FIELDS.has(key)) {
+    const n = Number(raw);
+    return isNaN(n) ? 0 : n;
+  }
   // Case-insensitive boolean normalization
   if (raw.toLowerCase() === 'true') return true;
   if (raw.toLowerCase() === 'false') return false;
@@ -64,9 +79,11 @@ export function parseArgs(args: string[]): ParseResult {
     remaining = args.slice(0);
   }
 
-  // Check for --init flag
-  if (remaining.includes('--init')) {
-    return { projectRoot, mode: 'init', event: null, ignoredFields: [] };
+  // Flag precedence: --list > --init > event parsing [FIX-5]
+
+  // Check for --list flag FIRST (no parsing needed)
+  if (remaining.includes('--list')) {
+    return { projectRoot, mode: 'list', instance: null, event: null, ignoredFields: [] };
   }
 
   // Parse key=value pairs and detect typed event syntax
@@ -88,12 +105,21 @@ export function parseArgs(args: string[]): ParseResult {
 
     const key = arg.slice(0, eqIdx);
     const rawValue = arg.slice(eqIdx + 1);
-    kvPairs[key] = coerceValue(rawValue);
+    kvPairs[key] = coerceValue(rawValue, key);
   }
+
+  // Extract instance BEFORE step extraction [FIX-1 primary defense]
+  const instanceValue = (kvPairs['instance'] as string) || null;
+  delete kvPairs['instance'];
 
   // Determine step from step= key or typed event name
   const stepValue = kvPairs['step'] as string | undefined;
   delete kvPairs['step'];
+
+  // Check for --init flag (after kvPairs parsing so instance= is available)
+  if (remaining.includes('--init')) {
+    return { projectRoot, mode: 'init', instance: instanceValue, event: null, ignoredFields: [] };
+  }
 
   // Track ignored fields
   for (const key of Object.keys(kvPairs)) {
@@ -104,36 +130,33 @@ export function parseArgs(args: string[]): ParseResult {
 
   // If no step= and no typed event, this is orient mode
   if (!stepValue && !typedEventName) {
-    return { projectRoot, mode: 'orient', event: null, ignoredFields };
+    return { projectRoot, mode: 'orient', instance: instanceValue, event: null, ignoredFields };
   }
 
   // Build the event
   const eventType = typedEventName || STEP_TO_EVENT[stepValue!];
   if (!eventType) {
     // Unknown step value — treat as orient with warning
-    return { projectRoot, mode: 'orient', event: null, ignoredFields };
+    return { projectRoot, mode: 'orient', instance: instanceValue, event: null, ignoredFields };
   }
 
   // Start with the event type
   const event: any = { type: eventType };
 
-  // Apply field name transformations and collect payload
+  // Apply payload fields (skip ignored)
+  // NOTE: Epic field transformations (add-completed=, current_epic=) have been removed.
+  // Epic tracking is now external (epics.json, backlog.json).
   for (const [key, value] of Object.entries(kvPairs)) {
-    // Field name transformations (checked BEFORE ignore, since transformed fields carry data)
-    if (key === 'add-completed') {
-      event.epicId = value;
-    } else if (key === 'current_epic' && (stepValue === 'sprint_setup' || eventType === 'START_SPRINT')) {
-      event.epicId = value;
-    } else if (IGNORED_FIELDS.has(key)) {
+    if (IGNORED_FIELDS.has(key)) {
       continue;
-    } else {
-      event[key] = value;
     }
+    event[key] = value;
   }
 
   return {
     projectRoot,
     mode: 'transition',
+    instance: instanceValue,
     event: event as BrainEvent,
     ignoredFields,
   };

@@ -1,22 +1,21 @@
 {
   "$schema": "https://stately.ai/schema/xstate-v5.json",
   "id": "prdLifecycle",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "initial": "specification",
   "meta": {
     "scaffold": ["arch", "specs", "data", "sprints", "release"],
     "invariant": "compass-not-autopilot: every state is a stable checkpoint. NO always transitions, NO onDone auto-transitions. The Lead must explicitly send events to advance."
   },
   "context": {
+    "instance": "",
     "team_name": "",
     "current_sprint": 0,
-    "current_epic": "",
-    "epics_completed": [],
-    "epics_remaining": [],
     "has_ai_ml": false,
     "has_analytics": false,
     "has_frontend_ui": false,
-    "created_at": ""
+    "created_at": "",
+    "product_backlog_count": 0
   },
   "states": {
     "specification": {
@@ -95,14 +94,14 @@
           "on": {
             "CEREMONY2_COMPLETE": {
               "target": "ceremony2_complete",
-              "actions": ["assignEpicsRemaining"]
+              "actions": []
             }
           },
           "meta": {
             "nav": {
               "resumeAt": "PHASE 1 — CEREMONY 2: Epic Decomposition",
               "roles": "(Phase 1 specialists should still be active)",
-              "meaning": "Backlog refinement done — stories have acceptance criteria",
+              "meaning": "Story Specification done — stories have acceptance criteria, initial T-shirt sizing, and profiles",
               "previous": "phase1_spawned"
             }
           }
@@ -111,14 +110,14 @@
           "on": {
             "PHASE1_COMPLETE": {
               "target": "#prdLifecycle.execution",
-              "actions": []
+              "actions": ["updateBacklogCount"]
             }
           },
           "meta": {
             "nav": {
-              "resumeAt": "PHASE 1 — CEREMONY 3: Spec Validation",
+              "resumeAt": "PHASE 1 — CEREMONY 3: Spec Validation + Backlog Finalization",
               "roles": "(Phase 1 specialists should still be active)",
-              "meaning": "Epic decomposition done — epics defined with execution order",
+              "meaning": "Epic decomposition done — epics defined, stories rationalized",
               "previous": "ceremony1_complete"
             }
           }
@@ -127,22 +126,39 @@
     },
 
     "execution": {
-      "initial": "phase1_complete",
+      "initial": "refinement",
       "states": {
-        "phase1_complete": {
+        "refinement": {
           "on": {
-            "START_SPRINT": {
-              "target": "sprint",
-              "actions": ["assignCurrentEpic", "incrementSprint"]
+            "REFINEMENT_DONE": {
+              "target": "sprint_planning",
+              "actions": ["updateBacklogCount"]
             }
           },
           "meta": {
             "nav": {
               "loadFile": "phases/phase2-sprints.md",
-              "resumeAt": "SPRINT SETUP (S.1) — first sprint",
-              "roles": "dev-1, dev-2 (spawned at BUILD)",
-              "meaning": "All specs validated — Phase 1 specialists shut down",
-              "previous": "ceremony2_complete"
+              "resumeAt": "REFINEMENT (R.1) — detail user stories into tasks with executor team",
+              "roles": "scrum-master (facilitates), product-manager (clarifies PRD), executors (estimate + decompose)",
+              "meaning": "Execution entered — Phase 1 specialists shut down. Refine backlog stories into tasks with SP.",
+              "previous": "ceremony2_complete or retro_done"
+            }
+          }
+        },
+        "sprint_planning": {
+          "on": {
+            "PLANNING_DONE": {
+              "target": "sprint",
+              "actions": ["incrementSprint"]
+            }
+          },
+          "meta": {
+            "nav": {
+              "loadFile": "phases/phase2-sprints.md",
+              "resumeAt": "SPRINT PLANNING (P.1) — decide what enters the sprint",
+              "roles": "scrum-master (presents velocity + capacity)",
+              "meaning": "Backlog refined — TL + SM decide sprint scope. NOTE: current_sprint is PREVIOUS sprint number here — incrementSprint fires AFTER PLANNING_DONE.",
+              "previous": "refinement"
             }
           }
         },
@@ -162,12 +178,13 @@
                   "resumeAt": "SUB-PHASE A: BUILD — spawn dev teammates (A.1)",
                   "roles": "dev-1, dev-2",
                   "conditionalRoles": {
-                    "has_ai_ml": "applied-ai-engineer (if AI epic)",
-                    "has_frontend_ui": "ux-ui-designer (if UI epic)",
-                    "has_analytics": "data-scientist (if analytics epic)"
+                    "has_ai_ml": "applied-ai-engineer (if AI stories in sprint)",
+                    "has_frontend_ui": "ux-ui-designer (if UI stories in sprint)",
+                    "has_analytics": "data-scientist (if analytics stories in sprint)"
                   },
-                  "meaning": "Sprint directory created, epic assigned to sprint",
-                  "previous": "phase1_complete or sprint_retro_done"
+                  "artifactRef": "sprints/sprint-{current_sprint}/sprint-backlog.json",
+                  "meaning": "Sprint directory created, stories assigned to sprint from sprint-backlog.json",
+                  "previous": "sprint_planning"
                 }
               }
             },
@@ -183,6 +200,7 @@
                   "loadFile": "phases/phase2-sprints.md",
                   "resumeAt": "SUB-PHASE A: BUILD — continue (teammates should be working)",
                   "roles": "dev-1, dev-2 (should be active)",
+                  "artifactRef": "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   "meaning": "BUILD teammates spawned and working",
                   "previous": "sprint_setup"
                 }
@@ -206,6 +224,7 @@
                     "has_analytics": "data-scientist",
                     "has_frontend_ui": "ux-ui-designer"
                   },
+                  "artifactRef": "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   "meaning": "BUILD complete — dev teammates shut down, code committed",
                   "previous": "sprint_build"
                 }
@@ -223,6 +242,7 @@
                   "loadFile": "phases/phase2-sprints.md",
                   "resumeAt": "SUB-PHASE B: VERIFY — continue (reviewers should be working)",
                   "roles": "qa-engineer, security-reviewer, performance-reviewer, code-reviewer (should be active)",
+                  "artifactRef": "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   "meaning": "VERIFY reviewers spawned and reviewing",
                   "previous": "sprint_build_done"
                 }
@@ -240,6 +260,7 @@
                   "loadFile": "phases/phase2-sprints.md",
                   "resumeAt": "SUB-PHASE C: ARCHITECTURE REVIEW — spawn architect (C.1)",
                   "roles": "architect",
+                  "artifactRef": "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   "meaning": "All reviews complete — reviewer teammates shut down",
                   "previous": "sprint_verify"
                 }
@@ -257,6 +278,7 @@
                   "loadFile": "phases/phase2-sprints.md",
                   "resumeAt": "SUB-PHASE C: ARCHITECTURE REVIEW — continue (C.2-C.4)",
                   "roles": "architect (should be active)",
+                  "artifactRef": "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   "meaning": "Architecture review in progress",
                   "previous": "sprint_verify_done"
                 }
@@ -274,6 +296,7 @@
                   "loadFile": "phases/phase2-sprints.md",
                   "resumeAt": "SPRINT REVIEW — lead writes GO/NO-GO (R.1)",
                   "roles": "(lead only — no teammates needed)",
+                  "artifactRef": "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   "meaning": "Architecture review passed or fixes applied",
                   "previous": "sprint_arch_review"
                 }
@@ -283,7 +306,7 @@
               "on": {
                 "RETRO_DONE": {
                   "target": "retro_done",
-                  "actions": ["completeEpic", "clearCurrentEpic"]
+                  "actions": []
                 }
               },
               "meta": {
@@ -291,6 +314,7 @@
                   "loadFile": "phases/phase2-sprints.md",
                   "resumeAt": "SPRINT RETROSPECTIVE — collect retro input (T.1)",
                   "roles": "(message remaining active teammates)",
+                  "artifactRef": "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   "meaning": "GO/NO-GO decision made by lead",
                   "previous": "sprint_arch_done"
                 }
@@ -298,25 +322,31 @@
             },
             "retro_done": {
               "on": {
-                "START_SPRINT": {
-                  "guard": "hasRemainingEpics",
-                  "target": "setup",
-                  "actions": ["assignCurrentEpic", "incrementSprint"],
-                  "reenter": true
+                "START_REFINEMENT": {
+                  "guard": "hasRemainingStories",
+                  "target": "#prdLifecycle.execution.refinement",
+                  "actions": ["updateBacklogCount"]
+                },
+                "START_PLANNING": {
+                  "guard": "hasRemainingStories",
+                  "target": "#prdLifecycle.execution.sprint_planning",
+                  "actions": ["updateBacklogCount"]
                 },
                 "START_RELEASE": {
-                  "guard": "noRemainingEpics",
-                  "target": "#prdLifecycle.release"
+                  "guard": "noRemainingStories",
+                  "target": "#prdLifecycle.release",
+                  "actions": ["updateBacklogCount"]
                 }
               },
               "meta": {
                 "nav": {
-                  "resumeAt": "(dynamic — depends on remaining epics)",
-                  "resumeAtIfEpics": "SPRINT SETUP (S.1) — next sprint for next epic",
-                  "resumeAtIfNoEpics": "PHASE 3: RELEASE — in SKILL.md (re-read if needed)",
-                  "loadFileIfEpics": "phases/phase2-sprints.md",
+                  "resumeAt": "(dynamic — depends on remaining stories)",
+                  "resumeAtIfStories": "Execute retro-transition checklist (T.4a-T.4f) then route based on check-refinement.sh",
+                  "resumeAtIfNoStories": "PHASE 3: RELEASE — in SKILL.md (re-read if needed)",
+                  "loadFileIfStories": "phases/phase2-sprints.md",
                   "roles": "(all shut down — next phase spawns fresh)",
-                  "meaning": "Retrospective compiled, ACE learnings aggregated",
+                  "lifecycleBeforeAdvancing": "Before advancing: shut down sprint teammates (devs, reviewers, architect). SM stays alive. PM shut down after Sprint Review (if still active). Re-spawn PM at next Refinement if needed.",
+                  "meaning": "Retrospective compiled, ACE learnings aggregated. Execute T.4a-T.4f checklist: update backlog, check epic status, brain event, record velocity, check refinement, route.",
                   "previous": "sprint_review_done"
                 }
               }

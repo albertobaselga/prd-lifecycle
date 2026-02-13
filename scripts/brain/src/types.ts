@@ -1,17 +1,20 @@
 /**
  * Brain context — persisted in state.json alongside XState's `value`.
  * Tracks project metadata, sprint progress, and domain flags.
+ *
+ * Epic tracking (current_epic, epics_completed, epics_remaining) has been
+ * moved to external artifacts (epics.json, backlog.json). The brain only
+ * knows product_backlog_count for routing guards.
  */
 export interface BrainContext {
+  instance: string;
   team_name: string;
   current_sprint: number;
-  current_epic: string;
-  epics_completed: string[];
-  epics_remaining: string[];
   has_ai_ml: boolean;
   has_analytics: boolean;
   has_frontend_ui: boolean;
   created_at: string;
+  product_backlog_count: number;
 }
 
 /**
@@ -24,9 +27,10 @@ export type BrainEvent =
   | { type: 'DOMAINS_DETECTED'; has_ai_ml: boolean; has_analytics: boolean; has_frontend_ui: boolean }
   | { type: 'PHASE1_SPAWNED' }
   | { type: 'CEREMONY1_COMPLETE' }
-  | { type: 'CEREMONY2_COMPLETE'; epics_remaining: string[] }
-  | { type: 'PHASE1_COMPLETE' }
-  | { type: 'START_SPRINT'; epicId: string }
+  | { type: 'CEREMONY2_COMPLETE' }
+  | { type: 'PHASE1_COMPLETE'; product_backlog_count: number }
+  | { type: 'REFINEMENT_DONE'; product_backlog_count: number }
+  | { type: 'PLANNING_DONE' }
   | { type: 'BUILD_STARTED' }
   | { type: 'BUILD_DONE' }
   | { type: 'VERIFY_STARTED' }
@@ -34,8 +38,10 @@ export type BrainEvent =
   | { type: 'ARCH_REVIEW_STARTED' }
   | { type: 'ARCH_DONE' }
   | { type: 'REVIEW_DONE' }
-  | { type: 'RETRO_DONE'; epicId: string }
-  | { type: 'START_RELEASE' }
+  | { type: 'RETRO_DONE' }
+  | { type: 'START_REFINEMENT'; product_backlog_count: number }
+  | { type: 'START_PLANNING'; product_backlog_count: number }
+  | { type: 'START_RELEASE'; product_backlog_count: number }
   | { type: 'RELEASE_DONE' }
   | { type: 'LIFECYCLE_COMPLETE' };
 
@@ -51,4 +57,6 @@ export interface NavigationOutput {
   extraRoles: string[];
   meaning: string;
   previous: string;
+  lifecycleBeforeAdvancing: string | null;
+  artifactRef: string | null;
 }

@@ -7,17 +7,17 @@ import type { BrainContext } from '../types.js';
 // --- Guard Tests (direct function calls) ---
 
 describe('guards', () => {
-  it('hasRemainingEpics returns true when epics remain', () => {
-    expect(guards.hasRemainingEpics({ context: { epics_remaining: ['E1'] } as BrainContext })).toBe(true);
+  it('hasRemainingStories returns true when stories remain', () => {
+    expect(guards.hasRemainingStories({ context: { product_backlog_count: 5 } as BrainContext })).toBe(true);
   });
 
-  it('hasRemainingEpics returns false when empty', () => {
-    expect(guards.hasRemainingEpics({ context: { epics_remaining: [] } as BrainContext })).toBe(false);
+  it('hasRemainingStories returns false when count is zero', () => {
+    expect(guards.hasRemainingStories({ context: { product_backlog_count: 0 } as BrainContext })).toBe(false);
   });
 
-  it('noRemainingEpics is inverse of hasRemainingEpics', () => {
-    expect(guards.noRemainingEpics({ context: { epics_remaining: ['E1'] } as BrainContext })).toBe(false);
-    expect(guards.noRemainingEpics({ context: { epics_remaining: [] } as BrainContext })).toBe(true);
+  it('noRemainingStories is inverse of hasRemainingStories', () => {
+    expect(guards.noRemainingStories({ context: { product_backlog_count: 5 } as BrainContext })).toBe(false);
+    expect(guards.noRemainingStories({ context: { product_backlog_count: 0 } as BrainContext })).toBe(true);
   });
 });
 
@@ -25,56 +25,34 @@ describe('guards', () => {
 
 function defaultContext(): BrainContext {
   return {
+    instance: '',
     team_name: '',
     current_sprint: 0,
-    current_epic: '',
-    epics_completed: [],
-    epics_remaining: [],
     has_ai_ml: false,
     has_analytics: false,
     has_frontend_ui: false,
     created_at: '',
+    product_backlog_count: 0,
   };
 }
 
 describe('actions', () => {
-  it('completeEpic adds epic to completed and removes from remaining', () => {
+  it('updateBacklogCount sets product_backlog_count from event', () => {
     const machine = setup({
-      types: {} as { context: BrainContext; events: { type: 'DO'; epicId: string } },
-      actions: { completeEpic: actions.completeEpic },
+      types: {} as { context: BrainContext; events: { type: 'DO'; product_backlog_count: number } },
+      actions: { updateBacklogCount: actions.updateBacklogCount },
     }).createMachine({
       initial: 'a',
-      context: { ...defaultContext(), epics_remaining: ['E1', 'E2'] },
+      context: { ...defaultContext(), product_backlog_count: 0 },
       states: {
-        a: { on: { DO: { target: 'b', actions: ['completeEpic'] } } },
+        a: { on: { DO: { target: 'b', actions: ['updateBacklogCount'] } } },
         b: {},
       },
     });
     const actor = createActor(machine).start();
-    actor.send({ type: 'DO', epicId: 'E1' });
+    actor.send({ type: 'DO', product_backlog_count: 42 });
     const ctx = actor.getSnapshot().context;
-    expect(ctx.epics_completed).toEqual(['E1']);
-    expect(ctx.epics_remaining).toEqual(['E2']);
-    actor.stop();
-  });
-
-  it('completeEpic is idempotent — double-complete does not duplicate', () => {
-    const machine = setup({
-      types: {} as { context: BrainContext; events: { type: 'DO'; epicId: string } },
-      actions: { completeEpic: actions.completeEpic },
-    }).createMachine({
-      initial: 'a',
-      context: { ...defaultContext(), epics_completed: ['E1'], epics_remaining: ['E2'] },
-      states: {
-        a: { on: { DO: { target: 'b', actions: ['completeEpic'] } } },
-        b: {},
-      },
-    });
-    const actor = createActor(machine).start();
-    actor.send({ type: 'DO', epicId: 'E1' });
-    const ctx = actor.getSnapshot().context;
-    expect(ctx.epics_completed).toEqual(['E1']); // No duplicate
-    expect(ctx.epics_remaining).toEqual(['E2']); // E2 untouched
+    expect(ctx.product_backlog_count).toBe(42);
     actor.stop();
   });
 
@@ -93,42 +71,6 @@ describe('actions', () => {
     const actor = createActor(machine).start();
     actor.send({ type: 'DO' });
     expect(actor.getSnapshot().context.current_sprint).toBe(2);
-    actor.stop();
-  });
-
-  it('assignCurrentEpic sets epic from event.epicId', () => {
-    const machine = setup({
-      types: {} as { context: BrainContext; events: { type: 'DO'; epicId: string } },
-      actions: { assignCurrentEpic: actions.assignCurrentEpic },
-    }).createMachine({
-      initial: 'a',
-      context: defaultContext(),
-      states: {
-        a: { on: { DO: { target: 'b', actions: ['assignCurrentEpic'] } } },
-        b: {},
-      },
-    });
-    const actor = createActor(machine).start();
-    actor.send({ type: 'DO', epicId: 'E3' });
-    expect(actor.getSnapshot().context.current_epic).toBe('E3');
-    actor.stop();
-  });
-
-  it('clearCurrentEpic resets to empty string', () => {
-    const machine = setup({
-      types: {} as { context: BrainContext; events: { type: 'DO' } },
-      actions: { clearCurrentEpic: actions.clearCurrentEpic },
-    }).createMachine({
-      initial: 'a',
-      context: { ...defaultContext(), current_epic: 'E2' },
-      states: {
-        a: { on: { DO: { target: 'b', actions: ['clearCurrentEpic'] } } },
-        b: {},
-      },
-    });
-    const actor = createActor(machine).start();
-    actor.send({ type: 'DO' });
-    expect(actor.getSnapshot().context.current_epic).toBe('');
     actor.stop();
   });
 

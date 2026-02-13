@@ -3,21 +3,22 @@ import { createBrainMachine, processEvent } from '../engine.js';
 import { stateValueToPath } from '../utils.js';
 import type { BrainEvent } from '../types.js';
 
-// Helper: walk the full spec phase to get to execution.phase1_complete
-function walkToPhase1Complete(): any {
+// Helper: walk the full spec phase to get to execution.refinement
+function walkToRefinement(): any {
   let snap = processEvent(null, null).snapshot;
   snap = processEvent(snap, { type: 'SCAFFOLD_COMPLETE', team_name: 'test' }).snapshot;
   snap = processEvent(snap, { type: 'DOMAINS_DETECTED', has_ai_ml: false, has_analytics: false, has_frontend_ui: false }).snapshot;
   snap = processEvent(snap, { type: 'PHASE1_SPAWNED' }).snapshot;
   snap = processEvent(snap, { type: 'CEREMONY1_COMPLETE' }).snapshot;
-  snap = processEvent(snap, { type: 'CEREMONY2_COMPLETE', epics_remaining: ['E1'] }).snapshot;
-  snap = processEvent(snap, { type: 'PHASE1_COMPLETE' }).snapshot;
+  snap = processEvent(snap, { type: 'CEREMONY2_COMPLETE' }).snapshot;
+  snap = processEvent(snap, { type: 'PHASE1_COMPLETE', product_backlog_count: 10 }).snapshot;
   return snap;
 }
 
-// Helper: walk one full sprint cycle
-function walkSprint(snap: any, epicId: string): any {
-  snap = processEvent(snap, { type: 'START_SPRINT', epicId }).snapshot;
+// Helper: walk one full sprint cycle (refinement → planning → sprint → retro)
+function walkSprintCycle(snap: any, backlogCount: number): any {
+  snap = processEvent(snap, { type: 'REFINEMENT_DONE', product_backlog_count: backlogCount }).snapshot;
+  snap = processEvent(snap, { type: 'PLANNING_DONE' }).snapshot;
   snap = processEvent(snap, { type: 'BUILD_STARTED' }).snapshot;
   snap = processEvent(snap, { type: 'BUILD_DONE' }).snapshot;
   snap = processEvent(snap, { type: 'VERIFY_STARTED' }).snapshot;
@@ -25,7 +26,7 @@ function walkSprint(snap: any, epicId: string): any {
   snap = processEvent(snap, { type: 'ARCH_REVIEW_STARTED' }).snapshot;
   snap = processEvent(snap, { type: 'ARCH_DONE' }).snapshot;
   snap = processEvent(snap, { type: 'REVIEW_DONE' }).snapshot;
-  snap = processEvent(snap, { type: 'RETRO_DONE', epicId }).snapshot;
+  snap = processEvent(snap, { type: 'RETRO_DONE' }).snapshot;
   return snap;
 }
 
@@ -35,7 +36,7 @@ describe('engine', () => {
     expect(stateValueToPath(snapshot.value)).toBe('specification.init');
   });
 
-  it('walks the full happy path from init to completed (1 epic)', () => {
+  it('walks the full happy path from init to completed (1 sprint)', () => {
     let snap = processEvent(null, null).snapshot;
     snap = processEvent(snap, { type: 'SCAFFOLD_COMPLETE', team_name: 'test' }).snapshot;
     expect(snap.context.team_name).toBe('test');
@@ -46,15 +47,19 @@ describe('engine', () => {
 
     snap = processEvent(snap, { type: 'PHASE1_SPAWNED' }).snapshot;
     snap = processEvent(snap, { type: 'CEREMONY1_COMPLETE' }).snapshot;
-    snap = processEvent(snap, { type: 'CEREMONY2_COMPLETE', epics_remaining: ['E1'] }).snapshot;
-    expect(snap.context.epics_remaining).toEqual(['E1']);
+    snap = processEvent(snap, { type: 'CEREMONY2_COMPLETE' }).snapshot;
 
-    snap = processEvent(snap, { type: 'PHASE1_COMPLETE' }).snapshot;
-    expect(stateValueToPath(snap.value)).toBe('execution.phase1_complete');
+    snap = processEvent(snap, { type: 'PHASE1_COMPLETE', product_backlog_count: 5 }).snapshot;
+    expect(stateValueToPath(snap.value)).toBe('execution.refinement');
+    expect(snap.context.product_backlog_count).toBe(5);
 
-    snap = processEvent(snap, { type: 'START_SPRINT', epicId: 'E1' }).snapshot;
+    // All stories move to sprint backlog during refinement → product backlog now 0
+    snap = processEvent(snap, { type: 'REFINEMENT_DONE', product_backlog_count: 0 }).snapshot;
+    expect(stateValueToPath(snap.value)).toBe('execution.sprint_planning');
+
+    snap = processEvent(snap, { type: 'PLANNING_DONE' }).snapshot;
     expect(snap.context.current_sprint).toBe(1);
-    expect(snap.context.current_epic).toBe('E1');
+    expect(stateValueToPath(snap.value)).toBe('execution.sprint.setup');
 
     snap = processEvent(snap, { type: 'BUILD_STARTED' }).snapshot;
     snap = processEvent(snap, { type: 'BUILD_DONE' }).snapshot;
@@ -63,14 +68,14 @@ describe('engine', () => {
     snap = processEvent(snap, { type: 'ARCH_REVIEW_STARTED' }).snapshot;
     snap = processEvent(snap, { type: 'ARCH_DONE' }).snapshot;
     snap = processEvent(snap, { type: 'REVIEW_DONE' }).snapshot;
-    snap = processEvent(snap, { type: 'RETRO_DONE', epicId: 'E1' }).snapshot;
-    expect(snap.context.epics_completed).toEqual(['E1']);
-    expect(snap.context.epics_remaining).toEqual([]);
-    expect(snap.context.current_epic).toBe('');
+    snap = processEvent(snap, { type: 'RETRO_DONE' }).snapshot;
+    expect(stateValueToPath(snap.value)).toBe('execution.sprint.retro_done');
+    expect(snap.context.product_backlog_count).toBe(0);
 
-    // No epics remaining → START_RELEASE
-    snap = processEvent(snap, { type: 'START_RELEASE' }).snapshot;
+    // Guard noRemainingStories checks context (0) → passes
+    snap = processEvent(snap, { type: 'START_RELEASE', product_backlog_count: 0 }).snapshot;
     expect(stateValueToPath(snap.value)).toBe('release.release_started');
+    expect(snap.context.product_backlog_count).toBe(0);
 
     snap = processEvent(snap, { type: 'RELEASE_DONE' }).snapshot;
     snap = processEvent(snap, { type: 'LIFECYCLE_COMPLETE' }).snapshot;
@@ -85,58 +90,66 @@ describe('engine', () => {
     expect(result.changed).toBe(false);
   });
 
-  it('guards prevent START_SPRINT when no epics remain', () => {
-    // Walk to retro_done with no remaining epics (1-epic cycle)
-    let snap = walkToPhase1Complete();
-    snap = walkSprint(snap, 'E1');
+  it('guards prevent START_RELEASE when stories remain', () => {
+    let snap = walkToRefinement();
+    snap = walkSprintCycle(snap, 10);
     expect(stateValueToPath(snap.value)).toBe('execution.sprint.retro_done');
-    expect(snap.context.epics_remaining).toEqual([]);
+    // context has product_backlog_count=10 from REFINEMENT_DONE
+    expect(snap.context.product_backlog_count).toBe(10);
 
-    // START_SPRINT should be rejected by guard
-    const result = processEvent(snap, { type: 'START_SPRINT', epicId: '' });
+    // START_RELEASE with product_backlog_count=5 should be rejected by noRemainingStories guard
+    // Guard checks CONTEXT (which is 10), not event payload
+    const result = processEvent(snap, { type: 'START_RELEASE', product_backlog_count: 5 });
     expect(stateValueToPath(result.snapshot.value)).toBe('execution.sprint.retro_done');
     expect(result.changed).toBe(false);
   });
 
-  it('guards allow START_RELEASE when no epics remain', () => {
-    let snap = walkToPhase1Complete();
-    snap = walkSprint(snap, 'E1');
+  it('guards allow START_RELEASE when no stories remain', () => {
+    let snap = walkToRefinement();
+    snap = walkSprintCycle(snap, 10);
 
-    const result = processEvent(snap, { type: 'START_RELEASE' });
+    // First update backlog count to 0 via START_REFINEMENT, then walk back to retro_done
+    // Actually, we need to get to retro_done with product_backlog_count=0
+    // The simplest way: manually set context then process
+    // OR: walk through another cycle that sets count to 0
+
+    // Let's use START_REFINEMENT to loop back and then get to retro with count=0
+    snap = processEvent(snap, { type: 'START_REFINEMENT', product_backlog_count: 0 }).snapshot;
+    // Wait — guard hasRemainingStories checks context (which is 10) → 10 > 0 → true → allowed
+    // But then updateBacklogCount sets context to 0
+    // Now at refinement with product_backlog_count=0
+    snap = processEvent(snap, { type: 'REFINEMENT_DONE', product_backlog_count: 0 }).snapshot;
+    snap = processEvent(snap, { type: 'PLANNING_DONE' }).snapshot;
+    snap = processEvent(snap, { type: 'BUILD_STARTED' }).snapshot;
+    snap = processEvent(snap, { type: 'BUILD_DONE' }).snapshot;
+    snap = processEvent(snap, { type: 'VERIFY_STARTED' }).snapshot;
+    snap = processEvent(snap, { type: 'VERIFY_DONE' }).snapshot;
+    snap = processEvent(snap, { type: 'ARCH_REVIEW_STARTED' }).snapshot;
+    snap = processEvent(snap, { type: 'ARCH_DONE' }).snapshot;
+    snap = processEvent(snap, { type: 'REVIEW_DONE' }).snapshot;
+    snap = processEvent(snap, { type: 'RETRO_DONE' }).snapshot;
+    expect(snap.context.product_backlog_count).toBe(0);
+
+    const result = processEvent(snap, { type: 'START_RELEASE', product_backlog_count: 0 });
     expect(stateValueToPath(result.snapshot.value)).toBe('release.release_started');
     expect(result.changed).toBe(true);
   });
 
-  it('sprint loop cycles correctly for 3 epics', () => {
-    // Setup with 3 epics
-    let snap = processEvent(null, null).snapshot;
-    snap = processEvent(snap, { type: 'SCAFFOLD_COMPLETE', team_name: 'multi' }).snapshot;
-    snap = processEvent(snap, { type: 'DOMAINS_DETECTED', has_ai_ml: false, has_analytics: false, has_frontend_ui: false }).snapshot;
-    snap = processEvent(snap, { type: 'PHASE1_SPAWNED' }).snapshot;
-    snap = processEvent(snap, { type: 'CEREMONY1_COMPLETE' }).snapshot;
-    snap = processEvent(snap, { type: 'CEREMONY2_COMPLETE', epics_remaining: ['E1', 'E2', 'E3'] }).snapshot;
-    snap = processEvent(snap, { type: 'PHASE1_COMPLETE' }).snapshot;
+  it('sprint loop cycles correctly for 2 sprints with refinement', () => {
+    let snap = walkToRefinement();
 
-    // Sprint 1: E1
-    snap = walkSprint(snap, 'E1');
+    // Sprint 1
+    snap = walkSprintCycle(snap, 10);
     expect(snap.context.current_sprint).toBe(1);
-    expect(snap.context.epics_completed).toEqual(['E1']);
-    expect(snap.context.epics_remaining).toEqual(['E2', 'E3']);
 
-    // Sprint 2: E2 — START_SPRINT should work (epics remain)
-    snap = walkSprint(snap, 'E2');
+    // Sprint 2: go through refinement again, then drain backlog to 0
+    snap = processEvent(snap, { type: 'START_REFINEMENT', product_backlog_count: 5 }).snapshot;
+    expect(stateValueToPath(snap.value)).toBe('execution.refinement');
+    snap = walkSprintCycle(snap, 0); // all remaining stories moved to sprint
     expect(snap.context.current_sprint).toBe(2);
-    expect(snap.context.epics_completed).toEqual(['E1', 'E2']);
-    expect(snap.context.epics_remaining).toEqual(['E3']);
 
-    // Sprint 3: E3
-    snap = walkSprint(snap, 'E3');
-    expect(snap.context.current_sprint).toBe(3);
-    expect(snap.context.epics_completed).toEqual(['E1', 'E2', 'E3']);
-    expect(snap.context.epics_remaining).toEqual([]);
-
-    // Now START_RELEASE should work
-    snap = processEvent(snap, { type: 'START_RELEASE' }).snapshot;
+    // Guard noRemainingStories checks context (0) → passes
+    snap = processEvent(snap, { type: 'START_RELEASE', product_backlog_count: 0 }).snapshot;
     expect(stateValueToPath(snap.value)).toBe('release.release_started');
   });
 

@@ -10,7 +10,7 @@ describe('logger', () => {
     expect(() => logger.log('test message')).not.toThrow();
   });
 
-  it('writes ISO-timestamped entries to log file', () => {
+  it('writes ISO-timestamped entries to log file (legacy path)', () => {
     const tmpDir = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'brain-log-'));
     const logDir = nodePath.join(tmpDir, 'prd-lifecycle');
     fs.mkdirSync(logDir, { recursive: true });
@@ -20,6 +20,23 @@ describe('logger', () => {
 
     const content = fs.readFileSync(nodePath.join(logDir, 'brain.log'), 'utf-8');
     expect(content).toMatch(/^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\] TEST_MESSAGE hello\n$/);
+
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it('writes to instance-aware log path', () => {
+    const tmpDir = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'brain-log-'));
+    const logDir = nodePath.join(tmpDir, 'prd-lifecycle', 'my-api');
+    fs.mkdirSync(logDir, { recursive: true });
+
+    const logger = createLogger(tmpDir, 'my-api');
+    logger.log('INSTANCE_LOG test');
+
+    const content = fs.readFileSync(nodePath.join(logDir, 'brain.log'), 'utf-8');
+    expect(content).toMatch(/INSTANCE_LOG test/);
+
+    // Verify no log file at the legacy path
+    expect(fs.existsSync(nodePath.join(tmpDir, 'prd-lifecycle', 'brain.log'))).toBe(false);
 
     fs.rmSync(tmpDir, { recursive: true });
   });

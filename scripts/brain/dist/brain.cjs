@@ -33,7 +33,8 @@ var TYPED_EVENTS = /* @__PURE__ */ new Set([
   "CEREMONY1_COMPLETE",
   "CEREMONY2_COMPLETE",
   "PHASE1_COMPLETE",
-  "START_SPRINT",
+  "REFINEMENT_DONE",
+  "PLANNING_DONE",
   "BUILD_STARTED",
   "BUILD_DONE",
   "VERIFY_STARTED",
@@ -42,6 +43,8 @@ var TYPED_EVENTS = /* @__PURE__ */ new Set([
   "ARCH_DONE",
   "REVIEW_DONE",
   "RETRO_DONE",
+  "START_REFINEMENT",
+  "START_PLANNING",
   "START_RELEASE",
   "RELEASE_DONE",
   "LIFECYCLE_COMPLETE"
@@ -53,7 +56,10 @@ var STEP_TO_EVENT = {
   ceremony1_complete: "CEREMONY1_COMPLETE",
   ceremony2_complete: "CEREMONY2_COMPLETE",
   phase1_complete: "PHASE1_COMPLETE",
-  sprint_setup: "START_SPRINT",
+  refinement_done: "REFINEMENT_DONE",
+  sprint_planning_done: "PLANNING_DONE",
+  start_refinement: "START_REFINEMENT",
+  start_planning: "START_PLANNING",
   sprint_build: "BUILD_STARTED",
   sprint_build_done: "BUILD_DONE",
   sprint_verify: "VERIFY_STARTED",
@@ -66,8 +72,13 @@ var STEP_TO_EVENT = {
   release_done: "RELEASE_DONE",
   completed: "LIFECYCLE_COMPLETE"
 };
-var IGNORED_FIELDS = /* @__PURE__ */ new Set(["phase", "current_sprint", "current_epic"]);
-function coerceValue(raw) {
+var IGNORED_FIELDS = /* @__PURE__ */ new Set(["phase", "current_sprint", "instance"]);
+var NUMERIC_FIELDS = /* @__PURE__ */ new Set(["product_backlog_count"]);
+function coerceValue(raw, key) {
+  if (key && NUMERIC_FIELDS.has(key)) {
+    const n = Number(raw);
+    return isNaN(n) ? 0 : n;
+  }
   if (raw.toLowerCase() === "true") return true;
   if (raw.toLowerCase() === "false") return false;
   try {
@@ -85,8 +96,8 @@ function parseArgs(args) {
   } else {
     remaining = args.slice(0);
   }
-  if (remaining.includes("--init")) {
-    return { projectRoot, mode: "init", event: null, ignoredFields: [] };
+  if (remaining.includes("--list")) {
+    return { projectRoot, mode: "list", instance: null, event: null, ignoredFields: [] };
   }
   const kvPairs = {};
   let typedEventName = null;
@@ -102,37 +113,38 @@ function parseArgs(args) {
     }
     const key = arg.slice(0, eqIdx);
     const rawValue = arg.slice(eqIdx + 1);
-    kvPairs[key] = coerceValue(rawValue);
+    kvPairs[key] = coerceValue(rawValue, key);
   }
+  const instanceValue = kvPairs["instance"] || null;
+  delete kvPairs["instance"];
   const stepValue = kvPairs["step"];
   delete kvPairs["step"];
+  if (remaining.includes("--init")) {
+    return { projectRoot, mode: "init", instance: instanceValue, event: null, ignoredFields: [] };
+  }
   for (const key of Object.keys(kvPairs)) {
     if (IGNORED_FIELDS.has(key)) {
       ignoredFields.push(key);
     }
   }
   if (!stepValue && !typedEventName) {
-    return { projectRoot, mode: "orient", event: null, ignoredFields };
+    return { projectRoot, mode: "orient", instance: instanceValue, event: null, ignoredFields };
   }
   const eventType = typedEventName || STEP_TO_EVENT[stepValue];
   if (!eventType) {
-    return { projectRoot, mode: "orient", event: null, ignoredFields };
+    return { projectRoot, mode: "orient", instance: instanceValue, event: null, ignoredFields };
   }
   const event = { type: eventType };
   for (const [key, value] of Object.entries(kvPairs)) {
-    if (key === "add-completed") {
-      event.epicId = value;
-    } else if (key === "current_epic" && (stepValue === "sprint_setup" || eventType === "START_SPRINT")) {
-      event.epicId = value;
-    } else if (IGNORED_FIELDS.has(key)) {
+    if (IGNORED_FIELDS.has(key)) {
       continue;
-    } else {
-      event[key] = value;
     }
+    event[key] = value;
   }
   return {
     projectRoot,
     mode: "transition",
+    instance: instanceValue,
     event,
     ignoredFields
   };
@@ -3244,8 +3256,8 @@ function setup({
 
 // src/guards.ts
 var guards = {
-  hasRemainingEpics: ({ context }) => context.epics_remaining.length > 0,
-  noRemainingEpics: ({ context }) => context.epics_remaining.length === 0
+  hasRemainingStories: ({ context }) => context.product_backlog_count > 0,
+  noRemainingStories: ({ context }) => context.product_backlog_count === 0
 };
 
 // src/actions.ts
@@ -3261,22 +3273,11 @@ var actions = {
     has_analytics: ({ event }) => event.has_analytics,
     has_frontend_ui: ({ event }) => event.has_frontend_ui
   }),
-  assignEpicsRemaining: assign({
-    epics_remaining: ({ event }) => event.epics_remaining
-  }),
-  assignCurrentEpic: assign({
-    current_epic: ({ event }) => event.epicId
-  }),
   incrementSprint: assign({
     current_sprint: ({ context }) => context.current_sprint + 1
   }),
-  // Idempotent: safe to call if epicId already in completed list
-  completeEpic: assign(({ context, event }) => ({
-    epics_completed: context.epics_completed.includes(event.epicId) ? context.epics_completed : [...context.epics_completed, event.epicId],
-    epics_remaining: context.epics_remaining.filter((e) => e !== event.epicId)
-  })),
-  clearCurrentEpic: assign({
-    current_epic: () => ""
+  updateBacklogCount: assign({
+    product_backlog_count: ({ event }) => event.product_backlog_count
   })
 };
 
@@ -3317,22 +3318,21 @@ function findNearestAncestor(workflowDef, dotPath) {
 var workflow_default = {
   $schema: "https://stately.ai/schema/xstate-v5.json",
   id: "prdLifecycle",
-  version: "1.0.0",
+  version: "2.0.0",
   initial: "specification",
   meta: {
     scaffold: ["arch", "specs", "data", "sprints", "release"],
     invariant: "compass-not-autopilot: every state is a stable checkpoint. NO always transitions, NO onDone auto-transitions. The Lead must explicitly send events to advance."
   },
   context: {
+    instance: "",
     team_name: "",
     current_sprint: 0,
-    current_epic: "",
-    epics_completed: [],
-    epics_remaining: [],
     has_ai_ml: false,
     has_analytics: false,
     has_frontend_ui: false,
-    created_at: ""
+    created_at: "",
+    product_backlog_count: 0
   },
   states: {
     specification: {
@@ -3411,14 +3411,14 @@ var workflow_default = {
           on: {
             CEREMONY2_COMPLETE: {
               target: "ceremony2_complete",
-              actions: ["assignEpicsRemaining"]
+              actions: []
             }
           },
           meta: {
             nav: {
               resumeAt: "PHASE 1 \u2014 CEREMONY 2: Epic Decomposition",
               roles: "(Phase 1 specialists should still be active)",
-              meaning: "Backlog refinement done \u2014 stories have acceptance criteria",
+              meaning: "Story Specification done \u2014 stories have acceptance criteria, initial T-shirt sizing, and profiles",
               previous: "phase1_spawned"
             }
           }
@@ -3427,14 +3427,14 @@ var workflow_default = {
           on: {
             PHASE1_COMPLETE: {
               target: "#prdLifecycle.execution",
-              actions: []
+              actions: ["updateBacklogCount"]
             }
           },
           meta: {
             nav: {
-              resumeAt: "PHASE 1 \u2014 CEREMONY 3: Spec Validation",
+              resumeAt: "PHASE 1 \u2014 CEREMONY 3: Spec Validation + Backlog Finalization",
               roles: "(Phase 1 specialists should still be active)",
-              meaning: "Epic decomposition done \u2014 epics defined with execution order",
+              meaning: "Epic decomposition done \u2014 epics defined, stories rationalized",
               previous: "ceremony1_complete"
             }
           }
@@ -3442,22 +3442,39 @@ var workflow_default = {
       }
     },
     execution: {
-      initial: "phase1_complete",
+      initial: "refinement",
       states: {
-        phase1_complete: {
+        refinement: {
           on: {
-            START_SPRINT: {
-              target: "sprint",
-              actions: ["assignCurrentEpic", "incrementSprint"]
+            REFINEMENT_DONE: {
+              target: "sprint_planning",
+              actions: ["updateBacklogCount"]
             }
           },
           meta: {
             nav: {
               loadFile: "phases/phase2-sprints.md",
-              resumeAt: "SPRINT SETUP (S.1) \u2014 first sprint",
-              roles: "dev-1, dev-2 (spawned at BUILD)",
-              meaning: "All specs validated \u2014 Phase 1 specialists shut down",
-              previous: "ceremony2_complete"
+              resumeAt: "REFINEMENT (R.1) \u2014 detail user stories into tasks with executor team",
+              roles: "scrum-master (facilitates), product-manager (clarifies PRD), executors (estimate + decompose)",
+              meaning: "Execution entered \u2014 Phase 1 specialists shut down. Refine backlog stories into tasks with SP.",
+              previous: "ceremony2_complete or retro_done"
+            }
+          }
+        },
+        sprint_planning: {
+          on: {
+            PLANNING_DONE: {
+              target: "sprint",
+              actions: ["incrementSprint"]
+            }
+          },
+          meta: {
+            nav: {
+              loadFile: "phases/phase2-sprints.md",
+              resumeAt: "SPRINT PLANNING (P.1) \u2014 decide what enters the sprint",
+              roles: "scrum-master (presents velocity + capacity)",
+              meaning: "Backlog refined \u2014 TL + SM decide sprint scope. NOTE: current_sprint is PREVIOUS sprint number here \u2014 incrementSprint fires AFTER PLANNING_DONE.",
+              previous: "refinement"
             }
           }
         },
@@ -3477,12 +3494,13 @@ var workflow_default = {
                   resumeAt: "SUB-PHASE A: BUILD \u2014 spawn dev teammates (A.1)",
                   roles: "dev-1, dev-2",
                   conditionalRoles: {
-                    has_ai_ml: "applied-ai-engineer (if AI epic)",
-                    has_frontend_ui: "ux-ui-designer (if UI epic)",
-                    has_analytics: "data-scientist (if analytics epic)"
+                    has_ai_ml: "applied-ai-engineer (if AI stories in sprint)",
+                    has_frontend_ui: "ux-ui-designer (if UI stories in sprint)",
+                    has_analytics: "data-scientist (if analytics stories in sprint)"
                   },
-                  meaning: "Sprint directory created, epic assigned to sprint",
-                  previous: "phase1_complete or sprint_retro_done"
+                  artifactRef: "sprints/sprint-{current_sprint}/sprint-backlog.json",
+                  meaning: "Sprint directory created, stories assigned to sprint from sprint-backlog.json",
+                  previous: "sprint_planning"
                 }
               }
             },
@@ -3498,6 +3516,7 @@ var workflow_default = {
                   loadFile: "phases/phase2-sprints.md",
                   resumeAt: "SUB-PHASE A: BUILD \u2014 continue (teammates should be working)",
                   roles: "dev-1, dev-2 (should be active)",
+                  artifactRef: "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   meaning: "BUILD teammates spawned and working",
                   previous: "sprint_setup"
                 }
@@ -3521,6 +3540,7 @@ var workflow_default = {
                     has_analytics: "data-scientist",
                     has_frontend_ui: "ux-ui-designer"
                   },
+                  artifactRef: "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   meaning: "BUILD complete \u2014 dev teammates shut down, code committed",
                   previous: "sprint_build"
                 }
@@ -3538,6 +3558,7 @@ var workflow_default = {
                   loadFile: "phases/phase2-sprints.md",
                   resumeAt: "SUB-PHASE B: VERIFY \u2014 continue (reviewers should be working)",
                   roles: "qa-engineer, security-reviewer, performance-reviewer, code-reviewer (should be active)",
+                  artifactRef: "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   meaning: "VERIFY reviewers spawned and reviewing",
                   previous: "sprint_build_done"
                 }
@@ -3555,6 +3576,7 @@ var workflow_default = {
                   loadFile: "phases/phase2-sprints.md",
                   resumeAt: "SUB-PHASE C: ARCHITECTURE REVIEW \u2014 spawn architect (C.1)",
                   roles: "architect",
+                  artifactRef: "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   meaning: "All reviews complete \u2014 reviewer teammates shut down",
                   previous: "sprint_verify"
                 }
@@ -3572,6 +3594,7 @@ var workflow_default = {
                   loadFile: "phases/phase2-sprints.md",
                   resumeAt: "SUB-PHASE C: ARCHITECTURE REVIEW \u2014 continue (C.2-C.4)",
                   roles: "architect (should be active)",
+                  artifactRef: "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   meaning: "Architecture review in progress",
                   previous: "sprint_verify_done"
                 }
@@ -3589,6 +3612,7 @@ var workflow_default = {
                   loadFile: "phases/phase2-sprints.md",
                   resumeAt: "SPRINT REVIEW \u2014 lead writes GO/NO-GO (R.1)",
                   roles: "(lead only \u2014 no teammates needed)",
+                  artifactRef: "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   meaning: "Architecture review passed or fixes applied",
                   previous: "sprint_arch_review"
                 }
@@ -3598,7 +3622,7 @@ var workflow_default = {
               on: {
                 RETRO_DONE: {
                   target: "retro_done",
-                  actions: ["completeEpic", "clearCurrentEpic"]
+                  actions: []
                 }
               },
               meta: {
@@ -3606,6 +3630,7 @@ var workflow_default = {
                   loadFile: "phases/phase2-sprints.md",
                   resumeAt: "SPRINT RETROSPECTIVE \u2014 collect retro input (T.1)",
                   roles: "(message remaining active teammates)",
+                  artifactRef: "sprints/sprint-{current_sprint}/sprint-backlog.json",
                   meaning: "GO/NO-GO decision made by lead",
                   previous: "sprint_arch_done"
                 }
@@ -3613,25 +3638,31 @@ var workflow_default = {
             },
             retro_done: {
               on: {
-                START_SPRINT: {
-                  guard: "hasRemainingEpics",
-                  target: "setup",
-                  actions: ["assignCurrentEpic", "incrementSprint"],
-                  reenter: true
+                START_REFINEMENT: {
+                  guard: "hasRemainingStories",
+                  target: "#prdLifecycle.execution.refinement",
+                  actions: ["updateBacklogCount"]
+                },
+                START_PLANNING: {
+                  guard: "hasRemainingStories",
+                  target: "#prdLifecycle.execution.sprint_planning",
+                  actions: ["updateBacklogCount"]
                 },
                 START_RELEASE: {
-                  guard: "noRemainingEpics",
-                  target: "#prdLifecycle.release"
+                  guard: "noRemainingStories",
+                  target: "#prdLifecycle.release",
+                  actions: ["updateBacklogCount"]
                 }
               },
               meta: {
                 nav: {
-                  resumeAt: "(dynamic \u2014 depends on remaining epics)",
-                  resumeAtIfEpics: "SPRINT SETUP (S.1) \u2014 next sprint for next epic",
-                  resumeAtIfNoEpics: "PHASE 3: RELEASE \u2014 in SKILL.md (re-read if needed)",
-                  loadFileIfEpics: "phases/phase2-sprints.md",
+                  resumeAt: "(dynamic \u2014 depends on remaining stories)",
+                  resumeAtIfStories: "Execute retro-transition checklist (T.4a-T.4f) then route based on check-refinement.sh",
+                  resumeAtIfNoStories: "PHASE 3: RELEASE \u2014 in SKILL.md (re-read if needed)",
+                  loadFileIfStories: "phases/phase2-sprints.md",
                   roles: "(all shut down \u2014 next phase spawns fresh)",
-                  meaning: "Retrospective compiled, ACE learnings aggregated",
+                  lifecycleBeforeAdvancing: "Before advancing: shut down sprint teammates (devs, reviewers, architect). SM stays alive. PM shut down after Sprint Review (if still active). Re-spawn PM at next Refinement if needed.",
+                  meaning: "Retrospective compiled, ACE learnings aggregated. Execute T.4a-T.4f checklist: update backlog, check epic status, brain event, record velocity, check refinement, route.",
                   previous: "sprint_review_done"
                 }
               }
@@ -3717,10 +3748,20 @@ function processEvent(snapshot, event) {
 // src/persistence.ts
 var fs = __toESM(require("fs"), 1);
 var nodePath = __toESM(require("path"), 1);
-var STATE_DIR = "prd-lifecycle";
+var BASE_DIR = "prd-lifecycle";
 var STATE_FILE = "state.json";
-function stateFilePath(projectRoot) {
-  return nodePath.join(projectRoot, STATE_DIR, STATE_FILE);
+function getStateDir(instance) {
+  return instance ? nodePath.join(BASE_DIR, instance) : BASE_DIR;
+}
+function stateFilePath(projectRoot, instance) {
+  return nodePath.join(projectRoot, getStateDir(instance), STATE_FILE);
+}
+function validateInstance(instance) {
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(instance) || instance.length > 60) {
+    throw new Error(
+      `Invalid instance slug: "${instance}". Must be lowercase alphanumeric with hyphens (no leading/trailing hyphen), max 60 chars. Underscores should be replaced with hyphens.`
+    );
+  }
 }
 function isLegacyFormat(data) {
   return data != null && typeof data.phase === "string" && typeof data.step === "string" && data.value === void 0;
@@ -3730,6 +3771,8 @@ function migrateLegacyState(legacy) {
   let value;
   if (phase === "completed") {
     value = "completed";
+  } else if (phase === "execution" && step === "phase1_complete") {
+    value = { execution: "refinement" };
   } else if (phase === "execution" && step.startsWith("sprint_")) {
     const sprintStep = step.slice("sprint_".length);
     value = { execution: { sprint: sprintStep } };
@@ -3737,15 +3780,14 @@ function migrateLegacyState(legacy) {
     value = { [phase]: step };
   }
   const context = {
+    instance: legacy.instance ?? "",
     team_name: legacy.team_name ?? "",
     current_sprint: legacy.current_sprint ?? 0,
-    current_epic: legacy.current_epic ?? "",
-    epics_completed: legacy.epics_completed ?? [],
-    epics_remaining: legacy.epics_remaining ?? [],
     has_ai_ml: legacy.has_ai_ml ?? false,
     has_analytics: legacy.has_analytics ?? false,
     has_frontend_ui: legacy.has_frontend_ui ?? false,
-    created_at: legacy.created_at ?? ""
+    created_at: legacy.created_at ?? "",
+    product_backlog_count: legacy.product_backlog_count ?? 0
   };
   return {
     value,
@@ -3755,8 +3797,8 @@ function migrateLegacyState(legacy) {
     children: {}
   };
 }
-function readState(projectRoot) {
-  const filePath = stateFilePath(projectRoot);
+function readState(projectRoot, instance) {
+  const filePath = stateFilePath(projectRoot, instance);
   if (!fs.existsSync(filePath)) return null;
   const raw = fs.readFileSync(filePath, "utf-8");
   if (raw.trim() === "") {
@@ -3765,13 +3807,13 @@ function readState(projectRoot) {
   const data = JSON.parse(raw);
   if (isLegacyFormat(data)) {
     const migrated = migrateLegacyState(data);
-    writeState(projectRoot, migrated);
+    writeState(projectRoot, migrated, instance);
     return migrated;
   }
   return data;
 }
-function writeState(projectRoot, snapshot) {
-  const filePath = stateFilePath(projectRoot);
+function writeState(projectRoot, snapshot, instance) {
+  const filePath = stateFilePath(projectRoot, instance);
   const dir = nodePath.dirname(filePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -3780,12 +3822,12 @@ function writeState(projectRoot, snapshot) {
   fs.writeFileSync(tmpFile, JSON.stringify(snapshot, null, 2));
   fs.renameSync(tmpFile, filePath);
 }
-function initializeProject(projectRoot, workflowDef) {
-  const filePath = stateFilePath(projectRoot);
+function initializeProject(projectRoot, workflowDef, instance) {
+  const filePath = stateFilePath(projectRoot, instance);
   if (fs.existsSync(filePath)) {
     throw new Error(`state.json already exists at ${filePath} \u2014 delete first to reinitialize`);
   }
-  const baseDir = nodePath.join(projectRoot, STATE_DIR);
+  const baseDir = nodePath.join(projectRoot, getStateDir(instance));
   fs.mkdirSync(baseDir, { recursive: true });
   const scaffoldDirs = workflowDef.meta?.scaffold || [];
   for (const dir of scaffoldDirs) {
@@ -3803,8 +3845,34 @@ function initializeProject(projectRoot, workflowDef) {
   const actor = createActor(machine).start();
   const snapshot = actor.getPersistedSnapshot();
   actor.stop();
-  snapshot.context = { ...snapshot.context, created_at: (/* @__PURE__ */ new Date()).toISOString() };
-  writeState(projectRoot, snapshot);
+  snapshot.context = {
+    ...snapshot.context,
+    instance,
+    created_at: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  writeState(projectRoot, snapshot, instance);
+}
+function listInstances(projectRoot) {
+  const baseDir = nodePath.join(projectRoot, BASE_DIR);
+  if (!fs.existsSync(baseDir)) return [];
+  const results = [];
+  const legacyPath = nodePath.join(baseDir, STATE_FILE);
+  if (fs.existsSync(legacyPath)) {
+    results.push({ slug: "(legacy)", statePath: legacyPath, isLegacy: true });
+  }
+  const entries = fs.readdirSync(baseDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const instanceState = nodePath.join(baseDir, entry.name, STATE_FILE);
+    if (fs.existsSync(instanceState)) {
+      results.push({
+        slug: entry.name,
+        statePath: instanceState,
+        isLegacy: false
+      });
+    }
+  }
+  return results;
 }
 
 // src/navigation.ts
@@ -3821,7 +3889,9 @@ function computeNavigation(snapshot, workflowDef) {
       conditionalRoles: [],
       extraRoles: [],
       meaning: `State ${statePath} not found in workflow definition`,
-      previous: "(unknown)"
+      previous: "(unknown)",
+      lifecycleBeforeAdvancing: null,
+      artifactRef: null
     };
   }
   const nav = stateNode.meta?.nav;
@@ -3833,7 +3903,9 @@ function computeNavigation(snapshot, workflowDef) {
       conditionalRoles: [],
       extraRoles: [],
       meaning: `State ${statePath} has no navigation metadata`,
-      previous: "(unknown)"
+      previous: "(unknown)",
+      lifecycleBeforeAdvancing: null,
+      artifactRef: null
     };
   }
   const conditionalRoles = [];
@@ -3844,16 +3916,21 @@ function computeNavigation(snapshot, workflowDef) {
   }
   const extraRoles = nav.extraRoles ? [nav.extraRoles] : [];
   let resumeAt = nav.resumeAt;
-  if (nav.resumeAtIfEpics && snapshot.context.epics_remaining.length > 0) {
-    resumeAt = nav.resumeAtIfEpics;
-  } else if (nav.resumeAtIfNoEpics && snapshot.context.epics_remaining.length === 0) {
-    resumeAt = nav.resumeAtIfNoEpics;
+  if (nav.resumeAtIfStories && snapshot.context.product_backlog_count > 0) {
+    resumeAt = nav.resumeAtIfStories;
+  } else if (nav.resumeAtIfNoStories && snapshot.context.product_backlog_count === 0) {
+    resumeAt = nav.resumeAtIfNoStories;
   }
   let rawLoadFile = nav.loadFile || null;
-  if (nav.loadFileIfEpics && snapshot.context.epics_remaining.length > 0) {
-    rawLoadFile = nav.loadFileIfEpics;
+  if (nav.loadFileIfStories && snapshot.context.product_backlog_count > 0) {
+    rawLoadFile = nav.loadFileIfStories;
   }
   const loadFile = rawLoadFile ? nodePath2.join(SKILL_DIR, rawLoadFile) : null;
+  const lifecycleBeforeAdvancing = nav.lifecycleBeforeAdvancing || null;
+  let artifactRef = nav.artifactRef || null;
+  if (artifactRef && snapshot.context.current_sprint != null) {
+    artifactRef = artifactRef.replace("{current_sprint}", String(snapshot.context.current_sprint));
+  }
   return {
     loadFile,
     resumeAt,
@@ -3861,7 +3938,9 @@ function computeNavigation(snapshot, workflowDef) {
     conditionalRoles,
     extraRoles,
     meaning: nav.meaning,
-    previous: nav.previous
+    previous: nav.previous,
+    lifecycleBeforeAdvancing,
+    artifactRef
   };
 }
 
@@ -3876,13 +3955,13 @@ function pad(text) {
 function divider() {
   return `\u2560${"\u2550".repeat(BOX_WIDTH - 2)}\u2563`;
 }
-function header(title) {
+function boxHeader(title) {
   const top = `\u2554${"\u2550".repeat(BOX_WIDTH - 2)}\u2557`;
   const line = pad(title);
   return `${top}
 ${line}`;
 }
-function footer() {
+function boxFooter() {
   return `\u255A${"\u2550".repeat(BOX_WIDTH - 2)}\u255D`;
 }
 function blank() {
@@ -3899,125 +3978,213 @@ var SPRINT_STEPS = [
   "review_done",
   "retro_done"
 ];
-function renderNavigationBox(snapshot, nav, projectRoot) {
+function renderCheatsheet(teamName, instance) {
+  const t = teamName || "YOUR_TEAM";
+  const inst = instance || "{slug}";
+  const lines = [];
+  lines.push("---");
+  lines.push("");
+  lines.push("## LEAD CHEATSHEET");
+  lines.push("");
+  lines.push("### Your Role");
+  lines.push("You are the ORCHESTRATOR. You NEVER write code yourself.");
+  lines.push("You delegate ALL work to teammates and make binding decisions.");
+  lines.push("");
+  lines.push("### Team API");
+  lines.push("");
+  lines.push("To spawn a teammate (assign work to a specialist):");
+  lines.push(`  Task(team_name="${t}", name="role", subagent_type="general-purpose", prompt="preamble+task")`);
+  lines.push(`  Always include: role preamble + learnings.md + artifact dir + SendMessage response protocol`);
+  lines.push(`  Artifact dir: prd-lifecycle/${inst}/`);
+  lines.push("");
+  lines.push("To message a teammate (communicate directly):");
+  lines.push('  SendMessage(type="message", recipient="NAME", content="...", summary="5-10 words")');
+  lines.push("");
+  lines.push("To notify all teammates (use sparingly \u2014 costs scale with team size):");
+  lines.push('  SendMessage(type="broadcast", content="...", summary="5-10 words")');
+  lines.push("");
+  lines.push("To shut down a teammate (end their session gracefully):");
+  lines.push('  SendMessage(type="shutdown_request", recipient="NAME")');
+  lines.push("  Then wait for their shutdown_response before proceeding");
+  lines.push("");
+  lines.push("To create a task (track work in shared list):");
+  lines.push('  TaskCreate(subject="...", description="...", activeForm="...ing")');
+  lines.push("");
+  lines.push("To assign a task (give ownership to teammate):");
+  lines.push('  TaskUpdate(taskId="ID", owner="NAME")');
+  lines.push("");
+  lines.push("To check all tasks (see progress and blockers):");
+  lines.push("  TaskList()");
+  lines.push("");
+  lines.push("### Your Rules");
+  lines.push("- Your plain text output is INVISIBLE to teammates \u2192 ALWAYS use SendMessage");
+  lines.push("- Include role preamble + learnings.md in EVERY teammate spawn prompt");
+  lines.push("- Transition handshake: VERIFY \u2192 UPDATE \u2192 ORIENT \u2192 LOAD \u2192 EXECUTE");
+  lines.push("- Max iterations: 3 ceremony rounds, 3 fix cycles, 5 QA cycles");
+  lines.push("- If confused or after compaction \u2192 run brain (no args) immediately");
+  return lines.join("\n");
+}
+function renderNavigationBox(snapshot, nav, projectRoot, instance) {
   const statePath = stateValueToPath(snapshot.value);
   const { phase, step } = statePathToFlatDisplay(statePath);
   const ctx = snapshot.context;
+  const inst = instance || ctx.instance || void 0;
   const lines = [];
-  lines.push(header("PRD-LIFECYCLE BRAIN \u2014 Navigation"));
-  lines.push(divider());
-  lines.push(pad("POSITION"));
-  lines.push(pad(`  Phase:       ${phase}`));
-  lines.push(pad(`  Step:        ${step}`));
-  lines.push(pad(`  Team:        ${ctx.team_name || "(not set)"}`));
-  if (phase === "execution" && step !== "phase1_complete") {
-    const totalEpics = (ctx.epics_completed?.length || 0) + (ctx.epics_remaining?.length || 0);
-    lines.push(pad(`  Sprint:      ${ctx.current_sprint} / ${totalEpics}`));
-    lines.push(pad(`  Epic:        ${ctx.current_epic || "(between sprints)"}`));
+  lines.push("# BRAIN \u2014 Navigation");
+  lines.push("");
+  lines.push("## Position");
+  lines.push(`Phase: ${phase}`);
+  lines.push(`Step: ${step}`);
+  lines.push(`Team: ${ctx.team_name || "(not set)"}`);
+  if (inst) {
+    lines.push(`Instance: ${inst}`);
   }
-  lines.push(blank());
-  lines.push(divider());
-  lines.push(pad("CAME FROM"));
-  lines.push(pad(`  Previous:    ${nav.previous}`));
-  lines.push(pad(`  Meaning:     ${nav.meaning}`));
-  lines.push(blank());
-  lines.push(divider());
-  lines.push(pad("GO TO"));
+  if (statePath.startsWith("execution.sprint.")) {
+    lines.push(`Sprint: ${ctx.current_sprint}`);
+    lines.push(`Backlog: ${ctx.product_backlog_count} stories remaining`);
+  }
+  lines.push("");
+  lines.push("## Came From");
+  lines.push(`Previous: ${nav.previous}`);
+  lines.push(`Meaning: ${nav.meaning}`);
+  lines.push("");
+  lines.push("## Go To");
   if (nav.loadFile) {
-    lines.push(pad(`  Load:        ${nav.loadFile}`));
+    lines.push(`Load: ${nav.loadFile}`);
     if (!fs2.existsSync(nav.loadFile)) {
-      lines.push(pad(`  \u26A0 WARNING:   Load file not found!`));
+      lines.push("WARNING: Load file not found!");
     }
   }
-  lines.push(pad(`  Resume at:   ${nav.resumeAt}`));
-  lines.push(pad(`  Roles:       ${nav.roles}`));
+  lines.push(`Resume at: ${nav.resumeAt}`);
+  lines.push(`Roles: ${nav.roles}`);
   if (nav.conditionalRoles.length > 0) {
-    lines.push(pad(`  + Conditional: ${nav.conditionalRoles.join(", ")}`));
+    lines.push(`Conditional: ${nav.conditionalRoles.join(", ")}`);
   }
   if (nav.extraRoles.length > 0) {
-    lines.push(pad(`  + Extra:     ${nav.extraRoles.join(", ")}`));
+    lines.push(`Extra: ${nav.extraRoles.join(", ")}`);
   }
-  lines.push(blank());
-  lines.push(divider());
+  lines.push("");
+  if (nav.artifactRef) {
+    lines.push("## Sprint Artifact");
+    lines.push(`Sprint backlog: ${nav.artifactRef}`);
+    lines.push("Read this file to recover sprint context (stories, tasks, progress) after compaction.");
+    lines.push("");
+  }
+  if (nav.lifecycleBeforeAdvancing) {
+    lines.push("## Teammate Lifecycle");
+    lines.push(nav.lifecycleBeforeAdvancing);
+    lines.push("");
+  }
   if (statePath.startsWith("execution.sprint.")) {
     const sprintStep = statePath.split(".").pop();
     const stepIdx = SPRINT_STEPS.indexOf(sprintStep);
     if (stepIdx >= 0) {
-      lines.push(pad("SPRINT PROGRESS"));
-      lines.push(pad(`  Sprint step: ${stepIdx + 1} / ${SPRINT_STEPS.length}`));
-      lines.push(blank());
-      lines.push(divider());
+      lines.push("## Sprint Progress");
+      lines.push(`Step ${stepIdx + 1} / ${SPRINT_STEPS.length}`);
+      lines.push("");
     }
   }
-  lines.push(pad("PROGRESS"));
-  const completed = ctx.epics_completed || [];
-  const remaining = ctx.epics_remaining || [];
-  lines.push(pad(`  Completed:   [${completed.join(", ") || "(none)"}] (${completed.length})`));
-  lines.push(pad(`  Remaining:   [${remaining.join(", ") || "(none)"}] (${remaining.length})`));
-  lines.push(pad(`  Domains:     AI/ML=${ctx.has_ai_ml}  Analytics=${ctx.has_analytics}  Frontend=${ctx.has_frontend_ui}`));
-  lines.push(blank());
-  lines.push(divider());
+  lines.push("## Progress");
+  lines.push(`Backlog: ${ctx.product_backlog_count} stories remaining`);
+  lines.push(`Domains: AI/ML=${ctx.has_ai_ml} Analytics=${ctx.has_analytics} Frontend=${ctx.has_frontend_ui}`);
+  lines.push("");
   if (projectRoot) {
-    lines.push(pad("ARTIFACTS"));
-    const baseDir = nodePath3.join(projectRoot, "prd-lifecycle");
+    lines.push("## Artifacts");
+    const baseDir = inst ? nodePath3.join(projectRoot, "prd-lifecycle", inst) : nodePath3.join(projectRoot, "prd-lifecycle");
+    if (inst) {
+      lines.push(`Artifact dir: prd-lifecycle/${inst}/`);
+    }
     const learningsPath = nodePath3.join(baseDir, "learnings.md");
     if (fs2.existsSync(learningsPath)) {
       const lineCount = fs2.readFileSync(learningsPath, "utf-8").split("\n").length;
-      lines.push(pad(`  learnings.md:  ${lineCount} lines`));
+      lines.push(`learnings.md: ${lineCount} lines`);
     }
-    const epicsPath = nodePath3.join(baseDir, "backlog", "epics.json");
-    lines.push(pad(`  epics.json:    ${fs2.existsSync(epicsPath) ? "exists" : "not found"}`));
+    const epicsPath = nodePath3.join(baseDir, "epics.json");
+    lines.push(`epics.json: ${fs2.existsSync(epicsPath) ? "exists" : "not found"}`);
+    const backlogPath = nodePath3.join(baseDir, "backlog.json");
+    lines.push(`backlog.json: ${fs2.existsSync(backlogPath) ? "exists" : "not found"}`);
     if (ctx.current_sprint > 0) {
       const sprintDir = nodePath3.join(baseDir, "sprints", `sprint-${ctx.current_sprint}`);
-      lines.push(pad(`  sprint-${ctx.current_sprint}/:     ${fs2.existsSync(sprintDir) ? "exists" : "not found"}`));
+      lines.push(`sprint-${ctx.current_sprint}/: ${fs2.existsSync(sprintDir) ? "exists" : "not found"}`);
     }
-    lines.push(blank());
-    lines.push(divider());
+    lines.push("");
   }
   const warnings = [];
-  if (phase === "execution" && ctx.current_sprint === 0 && step !== "phase1_complete") {
-    warnings.push("Sprint counter is 0 but phase is execution");
-  }
-  if (phase === "execution" && !ctx.current_epic && !["sprint_retro_done", "sprint_setup", "phase1_complete"].includes(step)) {
-    warnings.push("No current_epic set during execution phase");
-  }
-  if (step === "sprint_retro_done" && remaining.length === 0) {
-    warnings.push("All epics complete \u2014 should transition to release");
+  if (phase === "execution" && ctx.current_sprint === 0 && !["refinement", "sprint_planning"].includes(step)) {
+    warnings.push("Sprint counter is 0 but past planning phase");
   }
   if (warnings.length > 0) {
-    lines.push(pad("WARNINGS"));
+    lines.push("## Warnings");
     for (const w of warnings) {
-      lines.push(pad(`  \u26A0 ${w}`));
+      lines.push(`- ${w}`);
     }
-    lines.push(blank());
-    lines.push(divider());
+    lines.push("");
   }
-  lines.push(pad("PROTOCOL"));
-  lines.push(pad("  1. Read the file shown in LOAD (if any)"));
-  lines.push(pad("  2. Jump to the section shown in RESUME AT"));
-  lines.push(pad("  3. Follow instructions from that point"));
-  lines.push(pad("  4. After each sub-step: run brain with new state"));
-  lines.push(pad("  5. If confused or after compaction: run brain (no args)"));
-  lines.push(blank());
-  lines.push(footer());
+  lines.push("## Protocol");
+  lines.push("1. Read the file shown in Load");
+  lines.push("2. Jump to the section shown in Resume at");
+  lines.push("3. Follow instructions from that point");
+  lines.push("4. After each sub-step: run brain with new state");
+  lines.push("5. If confused or after compaction: run brain (no args)");
+  lines.push("");
+  lines.push(renderCheatsheet(ctx.team_name, inst));
   return lines.join("\n");
 }
-function renderNoStateBox() {
+function renderInstanceList(instances) {
   const lines = [];
-  lines.push(header("PRD-LIFECYCLE BRAIN \u2014 No State Found"));
-  lines.push(divider());
+  lines.push("# BRAIN \u2014 Instances");
+  lines.push("");
+  if (instances.length === 0) {
+    lines.push("No PRD instances found.");
+    lines.push("");
+    lines.push("Start new: `brain . instance={slug} --init`");
+  } else {
+    lines.push(`Found ${instances.length} instance(s):`);
+    lines.push("");
+    for (const inst of instances) {
+      try {
+        const raw = fs2.readFileSync(inst.statePath, "utf-8");
+        const state = JSON.parse(raw);
+        const path = stateValueToPath(state.value);
+        const { phase, step } = statePathToFlatDisplay(path);
+        const label = inst.isLegacy ? "**(legacy)**" : `**${inst.slug}**`;
+        lines.push(`- ${label} \u2014 ${phase}.${step} (team: ${state.context?.team_name || "(not set)"})`);
+      } catch {
+        lines.push(`- **${inst.slug}** \u2014 (corrupt state)`);
+      }
+    }
+    lines.push("");
+    lines.push("Resume: `brain . instance={slug}`");
+    lines.push("New:    `brain . instance={slug} --init`");
+  }
+  return lines.join("\n");
+}
+function renderNoStateBox(instance) {
+  const lines = [];
+  if (instance) {
+    lines.push(boxHeader("PRD-LIFECYCLE BRAIN \u2014 No State Found"));
+    lines.push(divider());
+    lines.push(blank());
+    lines.push(pad(`No state.json for instance "${instance}".`));
+    lines.push(blank());
+    lines.push(pad(`  Fresh start?  Run: brain . instance=${instance} --init`));
+    lines.push(pad("  List all:     Run: brain --list"));
+  } else {
+    lines.push(boxHeader("PRD-LIFECYCLE BRAIN \u2014 No State Found"));
+    lines.push(divider());
+    lines.push(blank());
+    lines.push(pad("No instance specified and no legacy state.json found."));
+    lines.push(blank());
+    lines.push(pad("  List instances:  brain --list"));
+    lines.push(pad("  Fresh start:     brain . instance={slug} --init"));
+  }
   lines.push(blank());
-  lines.push(pad("No prd-lifecycle/state.json in current directory."));
-  lines.push(blank());
-  lines.push(pad("  \u2022 Fresh project?  Run: brain --init"));
-  lines.push(pad("  \u2022 Resume?         cd to your project root and re-run brain"));
-  lines.push(blank());
-  lines.push(footer());
+  lines.push(boxFooter());
   return lines.join("\n");
 }
 function renderErrorBox(title, message, hint) {
   const lines = [];
-  lines.push(header(`PRD-LIFECYCLE BRAIN \u2014 ${title}`));
+  lines.push(boxHeader(`PRD-LIFECYCLE BRAIN \u2014 ${title}`));
   lines.push(divider());
   lines.push(blank());
   lines.push(pad(message));
@@ -4026,15 +4193,15 @@ function renderErrorBox(title, message, hint) {
     lines.push(pad(hint));
   }
   lines.push(blank());
-  lines.push(footer());
+  lines.push(boxFooter());
   return lines.join("\n");
 }
 
 // src/logger.ts
 var fs3 = __toESM(require("fs"), 1);
 var nodePath4 = __toESM(require("path"), 1);
-function createLogger(projectRoot) {
-  const logFile = nodePath4.join(projectRoot, "prd-lifecycle/brain.log");
+function createLogger(projectRoot, instance) {
+  const logFile = nodePath4.join(projectRoot, getStateDir(instance), "brain.log");
   return {
     log(message) {
       try {
@@ -4052,18 +4219,40 @@ function main() {
   const args = process.argv.slice(2);
   const parsed = parseArgs(args);
   const projectRoot = nodePath5.resolve(parsed.projectRoot);
-  const logger = createLogger(projectRoot);
-  logger.log(`INVOKE mode=${parsed.mode} args=[${args.join(" ")}]`);
+  const instance = parsed.instance || void 0;
+  if (parsed.mode === "list") {
+    const instances = listInstances(projectRoot);
+    console.log(renderInstanceList(instances));
+    process.exit(0);
+  }
+  if (instance) {
+    try {
+      validateInstance(instance);
+    } catch (err) {
+      console.error(renderErrorBox("Invalid Instance", err.message));
+      process.exit(1);
+    }
+  }
+  const logger = createLogger(projectRoot, instance);
+  logger.log(`INVOKE mode=${parsed.mode} instance=${instance || "(none)"} args=[${args.join(" ")}]`);
   if (parsed.ignoredFields.length > 0) {
     logger.log(`DEBUG ignored fields: ${parsed.ignoredFields.join(", ")}`);
   }
   if (parsed.mode === "init") {
+    if (!instance) {
+      console.error(renderErrorBox(
+        "Missing Instance",
+        "The instance= parameter is required for --init.",
+        "Usage: brain . instance={slug} --init"
+      ));
+      process.exit(1);
+    }
     try {
-      initializeProject(projectRoot, workflow_default);
+      initializeProject(projectRoot, workflow_default, instance);
       logger.log("INIT scaffold created");
-      const snapshot2 = readState(projectRoot);
+      const snapshot2 = readState(projectRoot, instance);
       const nav2 = computeNavigation(snapshot2, workflow_default);
-      console.log(renderNavigationBox(snapshot2, nav2, projectRoot));
+      console.log(renderNavigationBox(snapshot2, nav2, projectRoot, instance));
       process.exit(0);
     } catch (err) {
       if (err.message?.includes("already exists")) {
@@ -4076,14 +4265,18 @@ function main() {
   }
   let snapshot;
   try {
-    snapshot = readState(projectRoot);
+    snapshot = readState(projectRoot, instance);
   } catch (err) {
     console.error(renderErrorBox("Corrupt State", `Failed to parse state.json: ${err.message}`));
     process.exit(1);
   }
   if (snapshot === null) {
-    console.log(renderNoStateBox());
+    console.log(renderNoStateBox(instance));
     process.exit(0);
+  }
+  if (instance && snapshot.context.instance !== instance) {
+    snapshot.context.instance = instance;
+    writeState(projectRoot, snapshot, instance);
   }
   const statePath = stateValueToPath(snapshot.value);
   if (!resolveStateNode(workflow_default, statePath)) {
@@ -4100,7 +4293,7 @@ Fix: edit state.json "value" to a valid state, or delete to reinitialize`
   if (parsed.mode === "orient") {
     const nav2 = computeNavigation(snapshot, workflow_default);
     logger.log(`NAVIGATE orient ${statePath}`);
-    console.log(renderNavigationBox(snapshot, nav2, projectRoot));
+    console.log(renderNavigationBox(snapshot, nav2, projectRoot, instance));
     process.exit(0);
   }
   const event = parsed.event;
@@ -4117,12 +4310,12 @@ Fix: edit state.json "value" to a valid state, or delete to reinitialize`
     logger.log(`REJECTED ${event.type} at ${statePath}`);
     process.exit(1);
   }
-  writeState(projectRoot, result.snapshot);
+  writeState(projectRoot, result.snapshot, instance);
   const newPath = stateValueToPath(result.snapshot.value);
   logger.log(`STATE_AFTER ${newPath}`);
   const nav = computeNavigation(result.snapshot, workflow_default);
   logger.log(`NAVIGATE transition ${newPath}`);
-  console.log(renderNavigationBox(result.snapshot, nav, projectRoot));
+  console.log(renderNavigationBox(result.snapshot, nav, projectRoot, instance));
   process.exit(0);
 }
 main();
