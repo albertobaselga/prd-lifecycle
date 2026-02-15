@@ -2,7 +2,7 @@
 
 A [Claude Code](https://claude.ai/download) skill that takes a PRD and orchestrates the **full development lifecycle** using native Agent Teams, modeled after a high-performance Scrum team.
 
-15 specialized roles — each a super senior expert with domain-specific reasoning, red flag detection, and quality bars. Ceremony-driven phase gates. Pair programming. Parallel reviews. Learnings that compound across sprints.
+15 specialized roles (PM now spans Phase 1 + Phase 2 + Phase 3) — each a super senior expert with domain-specific reasoning, red flag detection, and quality bars. Ceremony-driven phase gates. Pair programming. Parallel reviews. Learnings that compound across sprints.
 
 ```
 /prd-lifecycle ./docs/prd.md
@@ -22,7 +22,7 @@ A [Claude Code](https://claude.ai/download) skill that takes a PRD and orchestra
      │   PHASE 1       │ │  PHASE 2    │  │    PHASE 3      │
      │  Specification  │ │  Execution  │  │    Release       │
      │                 │ │             │  │                  │
-     │ 5 core + up to  │ │ SM, PM,     │  │ release-engineer │
+     │ 6 core + up to  │ │ SM, PM,     │  │ release-engineer │
      │ 4 conditional   │ │ devs, QA,   │  │ tech-writer      │
      │ specialists     │ │ reviewers,  │  │ product-manager  │
      │                 │ │ architect   │  │                  │
@@ -38,6 +38,7 @@ A [Claude Code](https://claude.ai/download) skill that takes a PRD and orchestra
 | `qa-engineer` | "Testing finds ways it breaks" | Story feasibility, test scenarios, acceptance criteria |
 | `security-reviewer` | Assumes breach, thinks in attack trees | OWASP, input validation, auth boundaries |
 | `tech-writer` | "Docs are the UI of your API" | Functional specs, API contracts, story clarity |
+| `product-manager` | "Outcomes over outputs" | PRD coverage audits, product perspective on epics/stories |
 
 ### Core Roles (Phase 2: Execution Sprints)
 
@@ -72,7 +73,7 @@ A [Claude Code](https://claude.ai/download) skill that takes a PRD and orchestra
 
 Conditional specialists participate in **all 3 ceremonies** of Phase 1, and join BUILD/VERIFY in Phase 2 when the sprint includes stories from their domain.
 
-Max **10 concurrent teammates** at any time (5 core + up to 4 conditional + Lead).
+Max **10 concurrent teammates** at any time (6 core + up to 4 conditional + Lead).
 
 ## How It Works
 
@@ -277,6 +278,7 @@ data-engineer    █████████████████████
 qa-engineer      ████████████████████████████████████████████████
 security-rev     ████████████████████████████████████████████████
 tech-writer      ████████████████████████████████████████████████
+product-manager  ████████████████████████████████████████████████  (PRD coverage audits)
 applied-ai-eng   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  (if has_ai_ml)
 prompt-engineer  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  (if has_ai_ml)
 data-scientist   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  (if has_analytics)
