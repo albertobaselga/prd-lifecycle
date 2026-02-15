@@ -3396,7 +3396,7 @@ var workflow_default = {
           meta: {
             nav: {
               resumeAt: "PHASE 1 \u2014 resume ceremonies (check which ceremony is next)",
-              roles: "architect, data-engineer, qa-engineer, security-reviewer, tech-writer",
+              roles: "architect, data-engineer, qa-engineer, security-reviewer, tech-writer, product-manager",
               conditionalRoles: {
                 has_ai_ml: "applied-ai-engineer, prompt-engineer",
                 has_analytics: "data-scientist",
