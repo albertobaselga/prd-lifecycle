@@ -341,7 +341,7 @@ EXECUTION MODEL:
      | prompt-engineer | has_ai_ml | Joins all 3 Ceremonies | Joins BUILD for LLM epics | Prompt review |
 
      SLOT MANAGEMENT: With max 10 concurrent teammates, all conditional
-     specialists can be present simultaneously alongside the core 5.
+     specialists can be present simultaneously alongside the core 6.
      No rotation needed — spawn all applicable specialists at Phase 1 start
      and keep them through Ceremony 3.
 
@@ -349,7 +349,7 @@ EXECUTION MODEL:
 
      Inform the user that the PRD lifecycle has been initialized:
      "PRD lifecycle initialized for **{title}**. Starting Phase 1: Specification
-     with up to 9 specialist teammates (5 core + conditional). This phase includes
+     with up to 10 specialist teammates (6 core + conditional). This phase includes
      Epic Decomposition, Story Refinement (per epic), and Architecture/Data Model/
      Spec Validation."
 
@@ -362,12 +362,12 @@ EXECUTION MODEL:
 PHASE 1: SPECIFICATION
 ============================================================================
 
-Spawn the core 5 specialist teammates plus any conditional specialists.
+Spawn the core 6 specialist teammates plus any conditional specialists.
 Each teammate receives a role-specific preamble loaded from
 ~/.claude/skills/prd-lifecycle/preambles/{role}.md (if the file exists;
 if it does not exist, provide a brief role description inline).
 
-SPAWN CORE 5 TEAMMATES:
+SPAWN CORE 6 TEAMMATES:
 
   Task(subagent_type="general-purpose", model="opus",
        team_name="prd-{slug}", name="architect",
@@ -419,6 +419,18 @@ SPAWN CORE 5 TEAMMATES:
        summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
        the lead.")
 
+  Task(subagent_type="general-purpose", model="opus",
+       team_name="prd-{slug}", name="product-manager",
+       prompt="You are the Product Manager. You are the voice of the PRD in
+       Phase 1 — your job is to ensure no PRD requirement is lost during
+       decomposition. Read your full role instructions from
+       ~/.claude/skills/prd-lifecycle/preambles/product-manager.md before
+       doing anything else.
+       RESPONSE PROTOCOL: The team lead's name is '{lead-name}'. You MUST use
+       SendMessage(type=\"message\", recipient=\"{lead-name}\", content=\"...\",
+       summary=\"...\") for ALL responses. Plain text output is INVISIBLE to
+       the lead.")
+
 Wait for all core teammates to confirm they are ready. Teammate responses
 arrive as new conversation turns via SendMessage. Track which teammates
 have responded. If a teammate hasn't responded after 3 minutes, send a
@@ -427,7 +439,7 @@ follow-up message. Continue only when all core teammates have confirmed.
 SPAWN CONDITIONAL SPECIALISTS (Phase 1):
 
 If any domain flags were set in Step 0.6, spawn conditional specialists
-ALONGSIDE the core 5 (no rotation needed — max 10 concurrent allows it).
+ALONGSIDE the core 6 (no rotation needed — max 10 concurrent allows it).
 All conditional specialists participate in ALL 3 Ceremonies.
 
 Spawn conditional specialists with their preamble from
@@ -537,7 +549,18 @@ in Ceremony 2.
      RESPONSE FORMAT: Respond via SendMessage with your challenges and
      suggestions inline in the message content."
 
-     Wait for all 3 teammates to respond via SendMessage. Do NOT proceed
+     SendMessage to product-manager:
+     "EPIC REVIEW — PRODUCT PERSPECTIVE: Review these epic proposals as the
+     PRD authority. Challenge: Does each epic deliver clear user value? Are
+     boundaries aligned with user journeys? Would a user recognize these epics
+     as meaningful product increments? Are there PRD features that don't fit
+     neatly in any proposed epic?
+     Architect proposal: {proposal}
+     Data Engineer proposal: {proposal}
+     RESPONSE FORMAT: Respond via SendMessage with your challenges and
+     suggestions inline in the message content."
+
+     Wait for all 4 teammates to respond via SendMessage. Do NOT proceed
      based on idle status — they may be analyzing the proposals. Track which
      teammates have responded. Send follow-up after 5 minutes if missing.
 
@@ -581,12 +604,51 @@ in Ceremony 2.
 
      NOTE: No "stories" field in epics yet — stories are extracted in Ceremony 2.
 
+1.5b PRD COVERAGE AUDIT (mandatory — PM deliverable)
+
+     After epics are persisted, the PM verifies that the PRD is fully covered:
+
+     SendMessage(type="message", recipient="product-manager",
+       content="PRD COVERAGE AUDIT: Read the raw PRD from prd-lifecycle/{slug}/prd.json
+       (the 'raw' field). Read the persisted epics from prd-lifecycle/{slug}/epics.json.
+
+       For EACH identifiable requirement, feature, or user need in the PRD:
+       1. Identify which epic(s) cover it (via prd_sections or semantic match)
+       2. Mark as COVERED or UNCOVERED
+
+       Respond with a coverage matrix:
+
+       ## PRD Coverage Audit — Post Epic Decomposition
+       | # | PRD Requirement / Feature | Covering Epic(s) | Status |
+       |---|---------------------------|-------------------|--------|
+       | 1 | User authentication       | E1                | COVERED |
+       | 2 | Real-time notifications    | —                 | UNCOVERED |
+
+       SUMMARY: X/Y requirements covered. Z UNCOVERED.
+
+       If ANY requirement is UNCOVERED, list recommended actions:
+       - Assign to existing epic (which one and why)
+       - Create new epic (with justification)
+       - Defer as POST-MVP (with user impact assessment)
+
+       RESPONSE FORMAT: Respond via SendMessage with the full audit inline.",
+       summary="Audit PRD coverage against epics")
+
+     Wait for PM's response. If UNCOVERED requirements exist:
+     a) Discuss with architect whether to expand an existing epic or create a new one
+     b) If creating a new epic would exceed 7: escalate to user via AskUserQuestion
+     c) Update epics.json with any changes
+     d) Ask PM to re-run the audit to confirm all covered
+
+     Only proceed to TRANSITION when PM confirms full coverage (or Lead explicitly
+     defers specific requirements as POST-MVP with documented rationale).
+
      TRANSITION:
      bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=ceremony1_complete
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
 
      Announce: "Epic Decomposition complete. {N} epics defined. Execution order:
-     {order}."
+     {order}. PRD coverage audit: all requirements mapped."
 
 ----------------------------------------------------------------------------
 CEREMONY 2: STORY REFINEMENT (per epic)
@@ -627,9 +689,11 @@ requirements via its epic's prd_sections.
        in the message content. Do NOT write to a file.",
        summary="Review stories per epic from architecture perspective")
 
-     Repeat for: data-engineer, qa-engineer, security-reviewer, tech-writer
-     (and any conditional specialists) — each with their domain-specific
-     review prompt.
+     Repeat for: data-engineer, qa-engineer, security-reviewer, tech-writer,
+     product-manager (and any conditional specialists) — each with their
+     domain-specific review prompt. PM's review prompt focuses on product
+     perspective: does each story solve a real user problem? Are acceptance
+     criteria measurable and verifiable?
 
 2.3  COLLECT FEEDBACK
 
@@ -709,6 +773,42 @@ requirements via its epic's prd_sections.
      Announce: "Story Refinement complete. {N} stories across {M} epics refined
      and approved by all specialists."
 
+2.7b STORY COVERAGE AUDIT (mandatory — PM deliverable)
+
+     After stories are persisted, the PM verifies story completeness:
+
+     SendMessage(type="message", recipient="product-manager",
+       content="STORY COVERAGE AUDIT: Read prd-lifecycle/{slug}/epics.json and
+       prd-lifecycle/{slug}/prd.json (the 'stories' array).
+
+       Verify TWO things:
+
+       1. EPIC COVERAGE: Every epic has at least one story with matching epic_id.
+       2. REQUIREMENT COVERAGE: Cross-reference your PRD Coverage Audit from
+          Ceremony 1. For each PRD requirement marked COVERED, verify that at
+          least one story in the covering epic addresses it.
+
+       Respond with a story coverage matrix:
+
+       ## Story Coverage Audit — Post Refinement
+       | Epic | Title | Stories | PRD Reqs Covered | Gaps |
+       |------|-------|---------|------------------|------|
+       | E1   | Auth  | 3       | 2/2              | —    |
+       | E2   | API   | 4       | 3/4              | Real-time notifications |
+
+       If ANY gap: recommend adding a story, moving from another epic, or
+       deferring with impact assessment.
+
+       RESPONSE FORMAT: Respond via SendMessage with the full audit inline.",
+       summary="Audit story coverage against epics and PRD")
+
+     Wait for PM's response. If gaps exist:
+     a) Extract missing stories (re-run 2.1 for the affected epic only)
+     b) Run through abbreviated specialist review (2.2-2.6 for new stories only)
+     c) Ask PM to re-confirm coverage
+
+     Only proceed to TRANSITION when PM confirms full coverage.
+
      TRANSITION:
      bash ~/.claude/skills/prd-lifecycle/scripts/brain/run.sh . instance={slug} step=ceremony2_complete
      Read the file shown in LOAD (if any). Jump to the section shown in RESUME AT.
@@ -785,15 +885,24 @@ each validated by all specialists.
      SendMessage — track which teammates have responded, send follow-up after
      5 minutes if missing). Have data-engineer revise. Iterate until consensus.
 
-3.4  SPEC VALIDATION (all teammates participate)
+3.4  SPEC VALIDATION (all teammates participate, including PM)
 
-     Send all spec docs to all teammates:
+     Send all spec docs to all teammates (including product-manager):
      "SPEC VALIDATION: Review the functional specifications for all epics.
      Evaluate: completeness against acceptance criteria, API consistency,
      error handling coverage, user flow clarity, and alignment with
      architecture and data model docs. Docs: {list spec files}
      RESPONSE FORMAT: Respond via SendMessage with your feedback inline
      in the message content. Reference specific files and sections."
+
+     Send spec-specific prompt to product-manager:
+     "SPEC VALIDATION — PRODUCT PERSPECTIVE: Review the functional specs
+     from a user intent perspective. Do the specs faithfully represent the
+     user needs behind each story? Are error scenarios described from the
+     user's point of view? Are there acceptance criteria that the specs
+     don't adequately address?
+     Docs: {list spec files}
+     RESPONSE FORMAT: Respond via SendMessage with your feedback inline."
 
      Collect feedback (responses arrive as new conversation turns via
      SendMessage — track which teammates have responded, send follow-up after
@@ -821,7 +930,7 @@ each validated by all specialists.
      SendMessage(type="shutdown_request", recipient="architect",
        content="Phase 1 Specification complete. Shutting down.")
      Repeat for: data-engineer, qa-engineer, security-reviewer, tech-writer,
-     and any active conditional specialists (applied-ai-engineer,
+     product-manager, and any active conditional specialists (applied-ai-engineer,
      data-scientist, ux-ui-designer, prompt-engineer).
 
      Wait for all shutdown confirmations (responses arrive as new conversation
@@ -943,14 +1052,40 @@ R.5  RELEASE ENGINEER DELIVERABLES
 R.5b PRODUCT MANAGER DELIVERABLES
 
      Send to product-manager:
-     "RELEASE VALIDATION: Review all release documentation produced by
-     tech-writer (prd-lifecycle/{slug}/release/). Verify:
+     "RELEASE VALIDATION + PRD FULFILLMENT: Review all release documentation
+     AND verify the PRD was fully delivered. Your deliverable has TWO parts:
+
+     PART 1 — Release Messaging (existing):
      1. RELEASE-NOTES.md accurately represents shipped functionality
      2. README.md messaging aligns with the product hypothesis from the PRD
      3. No features are over-promised or under-represented
      4. Success criteria from the PRD are addressed in the release narrative
+
+     PART 2 — PRD Fulfillment Report (NEW):
+     Read the original PRD (prd-lifecycle/{slug}/prd.json raw field) and
+     prd-lifecycle/{slug}/backlog.json (completed stories).
+     For each PRD requirement:
+     - Map to implementing story(ies) and their status
+     - Confirm the acceptance criteria were met
+     - Flag any requirement NOT fully delivered
+
      Write your assessment to prd-lifecycle/{slug}/release/PRODUCT-SIGNOFF.md
-     with verdict: APPROVE or REQUEST_CHANGES."
+     with TWO sections:
+
+     ## Release Messaging — APPROVE | REQUEST_CHANGES
+     [existing content]
+
+     ## PRD Fulfillment — FULFILLED | PARTIAL | GAPS_FOUND
+     | PRD Requirement | Story | Status | Notes |
+     |-----------------|-------|--------|-------|
+     | User auth       | S-01  | DONE   | All ACs met |
+     | Notifications   | S-05  | DONE   | Basic only, real-time deferred |
+
+     SUMMARY: X/Y PRD requirements fulfilled. Z deferred (documented in
+     POST-RELEASE-BACKLOG.md if applicable).
+
+     If GAPS_FOUND: list each gap with impact assessment and recommendation
+     (ship with documented gap vs. delay release to address)."
 
      Wait for PM's SendMessage response. If REQUEST_CHANGES, relay feedback
      to tech-writer for revision. Maximum 2 revision cycles.
@@ -1232,8 +1367,11 @@ the following. Do not skip any item. Do not claim completion if any item fails.
 PHASE 1 GATES:
 - [ ] Epic Decomposition passed — 3-7 epics defined with PRD section mapping
       and execution order, all specialists approved (or lead made binding decisions)
+- [ ] PRD Coverage Audit passed — PM verified all PRD requirements map to epics (step 1.5b)
 - [ ] Story Refinement passed — all stories have acceptance criteria and valid
       epic_id, all specialists approved (or lead made binding decisions)
+- [ ] Story Coverage Audit passed — PM verified all epics have stories and all
+      PRD requirements have implementing stories (step 2.7b)
 - [ ] Architecture Review passed — per-epic arch docs validated by all specialists
 - [ ] Data Model Review passed — per-epic data docs validated by all specialists
 - [ ] Spec Validation passed — per-epic specs validated by all specialists
@@ -1259,6 +1397,8 @@ PHASE 2 AGGREGATE:
 - [ ] learnings.md is up to date with all sprint retros aggregated
 
 PHASE 3 GATES:
+- [ ] PRD Fulfillment Report in PRODUCT-SIGNOFF.md — PM verified all PRD
+      requirements delivered or explicitly deferred with rationale (R.5b)
 - [ ] README.md exists and is complete
 - [ ] API.md exists and covers all endpoints
 - [ ] DATA.md exists and covers all schemas
