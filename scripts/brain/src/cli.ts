@@ -3,7 +3,8 @@ import type { BrainEvent } from './types.js';
 // All valid typed event names (for typed event syntax detection)
 const TYPED_EVENTS = new Set([
   'SCAFFOLD_COMPLETE', 'DOMAINS_DETECTED', 'PHASE1_SPAWNED',
-  'CEREMONY1_COMPLETE', 'CEREMONY2_COMPLETE', 'PHASE1_COMPLETE',
+  'CEREMONY1_COMPLETE', 'CEREMONY2_COMPLETE',
+  'CEREMONY3_AUTHORED', 'CEREMONY3_REVIEWED', 'PHASE1_COMPLETE',
   'REFINEMENT_DONE', 'PLANNING_DONE',
   'BUILD_STARTED', 'BUILD_DONE',
   'VERIFY_STARTED', 'VERIFY_DONE', 'ARCH_REVIEW_STARTED',
@@ -19,6 +20,8 @@ const STEP_TO_EVENT: Record<string, string> = {
   phase1_spawned: 'PHASE1_SPAWNED',
   ceremony1_complete: 'CEREMONY1_COMPLETE',
   ceremony2_complete: 'CEREMONY2_COMPLETE',
+  ceremony3_authored: 'CEREMONY3_AUTHORED',
+  ceremony3_reviewed: 'CEREMONY3_REVIEWED',
   phase1_complete: 'PHASE1_COMPLETE',
   refinement_done: 'REFINEMENT_DONE',
   sprint_planning_done: 'PLANNING_DONE',

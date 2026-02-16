@@ -78,7 +78,8 @@
           },
           "meta": {
             "nav": {
-              "resumeAt": "PHASE 1 — resume ceremonies (check which ceremony is next)",
+              "loadFile": "phases/phase1-specification.md",
+              "resumeAt": "CEREMONY 1: EPIC DECOMPOSITION — step 1.1: REQUEST EPIC PROPOSALS",
               "roles": "architect, data-engineer, qa-engineer, security-reviewer, tech-writer, product-manager",
               "conditionalRoles": {
                 "has_ai_ml": "applied-ai-engineer, prompt-engineer",
@@ -99,7 +100,8 @@
           },
           "meta": {
             "nav": {
-              "resumeAt": "PHASE 1 — CEREMONY 2: Story Refinement",
+              "loadFile": "phases/phase1-specification.md",
+              "resumeAt": "CEREMONY 2: STORY REFINEMENT — step 2.1: EXTRACT STORIES PER EPIC",
               "roles": "(Phase 1 specialists should still be active)",
               "meaning": "Epic Decomposition done — epics defined with PRD section mapping and execution order",
               "previous": "phase1_spawned"
@@ -108,6 +110,38 @@
         },
         "ceremony2_complete": {
           "on": {
+            "CEREMONY3_AUTHORED": {
+              "target": "ceremony3_authored"
+            }
+          },
+          "meta": {
+            "nav": {
+              "loadFile": "phases/phase1-specification.md",
+              "resumeAt": "CEREMONY 3 — step 3.1: PARALLEL AUTHORING",
+              "roles": "(Phase 1 specialists should still be active)",
+              "meaning": "Story Refinement done — stories extracted per epic with epic_id, acceptance criteria validated",
+              "previous": "ceremony1_complete"
+            }
+          }
+        },
+        "ceremony3_authored": {
+          "on": {
+            "CEREMONY3_REVIEWED": {
+              "target": "ceremony3_reviewed"
+            }
+          },
+          "meta": {
+            "nav": {
+              "loadFile": "phases/phase1-specification.md",
+              "resumeAt": "CEREMONY 3 — step 3.2: ARCHITECTURE REVIEW",
+              "roles": "(Phase 1 specialists should still be active)",
+              "meaning": "Architecture, data, and spec docs authored. Starting cross-review cycles (3.2-3.4).",
+              "previous": "ceremony2_complete"
+            }
+          }
+        },
+        "ceremony3_reviewed": {
+          "on": {
             "PHASE1_COMPLETE": {
               "target": "#prdLifecycle.execution",
               "actions": ["updateBacklogCount"]
@@ -115,10 +149,11 @@
           },
           "meta": {
             "nav": {
-              "resumeAt": "PHASE 1 — CEREMONY 3: Spec Validation + Backlog Finalization",
+              "loadFile": "phases/phase1-specification.md",
+              "resumeAt": "CEREMONY 3 — step 3.4b: CREATE PRODUCT BACKLOG",
               "roles": "(Phase 1 specialists should still be active)",
-              "meaning": "Story Refinement done — stories extracted per epic with epic_id, acceptance criteria validated",
-              "previous": "ceremony1_complete"
+              "meaning": "All review cycles passed (arch, data, spec). Finalize: backlog + gate + shutdown + commit.",
+              "previous": "ceremony3_authored"
             }
           }
         }

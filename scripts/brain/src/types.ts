@@ -28,6 +28,8 @@ export type BrainEvent =
   | { type: 'PHASE1_SPAWNED' }
   | { type: 'CEREMONY1_COMPLETE' }
   | { type: 'CEREMONY2_COMPLETE' }
+  | { type: 'CEREMONY3_AUTHORED' }
+  | { type: 'CEREMONY3_REVIEWED' }
   | { type: 'PHASE1_COMPLETE'; product_backlog_count: number }
   | { type: 'REFINEMENT_DONE'; product_backlog_count: number }
   | { type: 'PLANNING_DONE' }

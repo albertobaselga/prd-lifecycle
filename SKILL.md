@@ -898,7 +898,9 @@ RESUME:
   | domains_detected | specification | Flags set | Step 0.7 (announce) → Phase 1 |
   | phase1_spawned | specification | Teammates active | Resume ceremonies |
   | ceremony1_complete | specification | Epics decomposed | Ceremony 2 (Story Refinement) |
-  | ceremony2_complete | specification | Stories refined per epic | Ceremony 3 |
+  | ceremony2_complete | specification | Stories refined per epic | Ceremony 3 (step 3.1) |
+  | ceremony3_authored | specification | Docs authored | Step 3.2 (arch review) |
+  | ceremony3_reviewed | specification | Reviews passed | Step 3.4b (backlog + gate) |
   | refinement | execution | Team refines product backlog stories into tasks with SP | Continue refinement |
   | sprint_planning | execution | TL + SM select stories for sprint based on capacity | Continue sprint planning |
   | sprint_setup | execution | Sprint dir created | Spawn BUILD teammates (A.1) |
