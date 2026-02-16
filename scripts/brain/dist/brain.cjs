@@ -3496,7 +3496,7 @@ var workflow_default = {
               resumeAt: "REFINEMENT (R.1) \u2014 detail user stories into tasks with executor team",
               roles: "scrum-master (facilitates), product-manager (clarifies PRD), executors (estimate + decompose)",
               meaning: "Execution entered \u2014 Phase 1 specialists shut down. Refine backlog stories into tasks with SP.",
-              previous: "ceremony2_complete or retro_done"
+              previous: "ceremony3_reviewed or retro_done"
             }
           }
         },
