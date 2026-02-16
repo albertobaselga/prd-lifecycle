@@ -283,6 +283,7 @@ EXECUTION MODEL:
          data/           — data model docs per epic
          sprints/        — sprint directories
          release/        — release artifacts
+         reports/        — PM coverage audits and reports
          state.json      — lifecycle state tracker
          learnings.md    — ACE learning compendium
 
@@ -616,7 +617,7 @@ in Ceremony 2.
        1. Identify which epic(s) cover it (via prd_sections or semantic match)
        2. Mark as COVERED or UNCOVERED
 
-       Respond with a coverage matrix:
+       Write your audit to prd-lifecycle/{slug}/reports/prd-coverage-audit.md with:
 
        ## PRD Coverage Audit — Post Epic Decomposition
        | # | PRD Requirement / Feature | Covering Epic(s) | Status |
@@ -631,7 +632,8 @@ in Ceremony 2.
        - Create new epic (with justification)
        - Defer as POST-MVP (with user impact assessment)
 
-       RESPONSE FORMAT: Respond via SendMessage with the full audit inline.",
+       RESPONSE FORMAT: Write the audit file, then respond via SendMessage
+       confirming the audit results.",
        summary="Audit PRD coverage against epics")
 
      Wait for PM's response. If UNCOVERED requirements exist:
@@ -785,10 +787,11 @@ requirements via its epic's prd_sections.
 
        1. EPIC COVERAGE: Every epic has at least one story with matching epic_id.
        2. REQUIREMENT COVERAGE: Cross-reference your PRD Coverage Audit from
-          Ceremony 1. For each PRD requirement marked COVERED, verify that at
-          least one story in the covering epic addresses it.
+          prd-lifecycle/{slug}/reports/prd-coverage-audit.md. For each PRD
+          requirement marked COVERED, verify that at least one story in the
+          covering epic addresses it.
 
-       Respond with a story coverage matrix:
+       Write your audit to prd-lifecycle/{slug}/reports/story-coverage-audit.md with:
 
        ## Story Coverage Audit — Post Refinement
        | Epic | Title | Stories | PRD Reqs Covered | Gaps |
@@ -799,7 +802,8 @@ requirements via its epic's prd_sections.
        If ANY gap: recommend adding a story, moving from another epic, or
        deferring with impact assessment.
 
-       RESPONSE FORMAT: Respond via SendMessage with the full audit inline.",
+       RESPONSE FORMAT: Write the audit file, then respond via SendMessage
+       confirming the audit results.",
        summary="Audit story coverage against epics and PRD")
 
      Wait for PM's response. If gaps exist:
@@ -850,10 +854,37 @@ each validated by all specialists.
         Epics: {epics from epics.json}
         Stories per epic: {stories from prd.json filtered by epic_id}"
 
-     Wait for all 3 to complete their documents. Responses arrive as new
-     conversation turns via SendMessage. Track which teammates have responded.
-     If a teammate hasn't responded after 5 minutes, send a follow-up message.
-     Continue only when all 3 expected responses have been received.
+     d) conditional specialists (in parallel with a-c):
+
+     If has_ai_ml, send to applied-ai-engineer:
+        "ML ARCHITECTURE DOCS: For each epic with ML/AI components, write an ML
+        architecture supplement covering: model selection rationale, training/inference
+        pipeline, versioning strategy, monitoring approach, and responsible AI
+        considerations. Write each to: prd-lifecycle/{slug}/arch/epic-{id}-ml.md
+        Epics: {epics from epics.json}
+        Stories per epic: {stories from prd.json filtered by epic_id}"
+
+     If has_analytics, send to data-scientist:
+        "ANALYTICS ARCHITECTURE DOCS: For each epic with analytics components, write
+        an analytics supplement covering: metrics taxonomy, event schema, analytics
+        pipeline, experimentation framework, and privacy considerations.
+        Write each to: prd-lifecycle/{slug}/arch/epic-{id}-analytics.md
+        Epics: {epics from epics.json}
+        Stories per epic: {stories from prd.json filtered by epic_id}"
+
+     If has_frontend_ui, send to ux-ui-designer:
+        "UX ARCHITECTURE DOCS: For each epic with frontend/UI components, write a UX
+        supplement covering: information architecture, interaction patterns, component
+        inventory, responsive strategy, and accessibility plan.
+        Write each to: prd-lifecycle/{slug}/arch/epic-{id}-ux.md
+        Epics: {epics from epics.json}
+        Stories per epic: {stories from prd.json filtered by epic_id}"
+
+     Wait for all teammates to complete their documents (core 3 + any conditional).
+     Responses arrive as new conversation turns via SendMessage. Track which
+     teammates have responded. If a teammate hasn't responded after 5 minutes,
+     send a follow-up message. Continue only when all expected responses have
+     been received.
 
 3.2  ARCHITECTURE REVIEW (all teammates participate)
 
@@ -910,8 +941,8 @@ each validated by all specialists.
 
 3.4b CREATE PRODUCT BACKLOG
      Run: bash ~/.claude/skills/prd-lifecycle/scripts/create-backlog.sh . {slug}
-     This creates backlog.json with all stories from the specification in status="backlog".
-     Verify: test -f prd-lifecycle/{slug}/backlog.json
+     This reads stories from prd.json and creates backlog.json with all stories
+     in status="backlog". Verify: test -f prd-lifecycle/{slug}/backlog.json
 
 3.5  GATE: ALL DOCUMENTS FINALIZED
 
@@ -920,6 +951,11 @@ each validated by all specialists.
      - prd-lifecycle/{slug}/data/epic-{id}.md for each epic
      - prd-lifecycle/{slug}/specs/epic-{id}.md for each epic
      - prd-lifecycle/{slug}/backlog.json
+     - prd-lifecycle/{slug}/reports/prd-coverage-audit.md
+     - prd-lifecycle/{slug}/reports/story-coverage-audit.md
+     If has_ai_ml: prd-lifecycle/{slug}/arch/epic-{id}-ml.md (for AI-relevant epics)
+     If has_analytics: prd-lifecycle/{slug}/arch/epic-{id}-analytics.md (for analytics-relevant epics)
+     If has_frontend_ui: prd-lifecycle/{slug}/arch/epic-{id}-ux.md (for UI-relevant epics)
 
      Announce: "Phase 1 Specification complete. Architecture, data model, and
      functional specs validated by all specialists."
@@ -1522,7 +1558,7 @@ EXTERNAL SCRIPTS (ADVISORY):
 
   | Script | Usage | Output |
   |--------|-------|--------|
-  | `create-backlog.sh` | `bash ~/.claude/skills/prd-lifecycle/scripts/create-backlog.sh . {slug}` | Creates backlog.json from specs + epics.json |
+  | `create-backlog.sh` | `bash ~/.claude/skills/prd-lifecycle/scripts/create-backlog.sh . {slug}` | Creates backlog.json from prd.json stories (status=backlog) |
   | `calculate-capacity.sh` | `bash ~/.claude/skills/prd-lifecycle/scripts/calculate-capacity.sh . {slug}` | `capacity=N` (moving avg, clamped [8,21]) |
   | `record-velocity.sh` | `bash ~/.claude/skills/prd-lifecycle/scripts/record-velocity.sh . {slug} {sprint} {planned} {completed}` | Appends to velocity.json |
   | `check-epic-status.sh` | `bash ~/.claude/skills/prd-lifecycle/scripts/check-epic-status.sh . {slug}` | JSON array of 100%-done epic IDs |

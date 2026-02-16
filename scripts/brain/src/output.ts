@@ -194,6 +194,12 @@ export function renderNavigationBox(
     lines.push(`epics.json: ${fs.existsSync(epicsPath) ? 'exists' : 'not found'}`);
     const backlogPath = nodePath.join(baseDir, 'backlog.json');
     lines.push(`backlog.json: ${fs.existsSync(backlogPath) ? 'exists' : 'not found'}`);
+    const prdCoverageAudit = nodePath.join(baseDir, 'reports', 'prd-coverage-audit.md');
+    const storyCoverageAudit = nodePath.join(baseDir, 'reports', 'story-coverage-audit.md');
+    if (fs.existsSync(prdCoverageAudit) || fs.existsSync(storyCoverageAudit)) {
+      lines.push(`prd-coverage-audit.md: ${fs.existsSync(prdCoverageAudit) ? 'exists' : 'not found'}`);
+      lines.push(`story-coverage-audit.md: ${fs.existsSync(storyCoverageAudit) ? 'exists' : 'not found'}`);
+    }
     if (ctx.current_sprint > 0) {
       const sprintDir = nodePath.join(baseDir, 'sprints', `sprint-${ctx.current_sprint}`);
       lines.push(`sprint-${ctx.current_sprint}/: ${fs.existsSync(sprintDir) ? 'exists' : 'not found'}`);

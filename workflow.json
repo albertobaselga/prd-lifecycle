@@ -4,7 +4,7 @@
   "version": "2.0.0",
   "initial": "specification",
   "meta": {
-    "scaffold": ["arch", "specs", "data", "sprints", "release"],
+    "scaffold": ["arch", "specs", "data", "sprints", "release", "reports"],
     "invariant": "compass-not-autopilot: every state is a stable checkpoint. NO always transitions, NO onDone auto-transitions. The Lead must explicitly send events to advance."
   },
   "context": {

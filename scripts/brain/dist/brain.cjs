@@ -3321,7 +3321,7 @@ var workflow_default = {
   version: "2.0.0",
   initial: "specification",
   meta: {
-    scaffold: ["arch", "specs", "data", "sprints", "release"],
+    scaffold: ["arch", "specs", "data", "sprints", "release", "reports"],
     invariant: "compass-not-autopilot: every state is a stable checkpoint. NO always transitions, NO onDone auto-transitions. The Lead must explicitly send events to advance."
   },
   context: {
@@ -4103,6 +4103,12 @@ function renderNavigationBox(snapshot, nav, projectRoot, instance) {
     lines.push(`epics.json: ${fs2.existsSync(epicsPath) ? "exists" : "not found"}`);
     const backlogPath = nodePath3.join(baseDir, "backlog.json");
     lines.push(`backlog.json: ${fs2.existsSync(backlogPath) ? "exists" : "not found"}`);
+    const prdCoverageAudit = nodePath3.join(baseDir, "reports", "prd-coverage-audit.md");
+    const storyCoverageAudit = nodePath3.join(baseDir, "reports", "story-coverage-audit.md");
+    if (fs2.existsSync(prdCoverageAudit) || fs2.existsSync(storyCoverageAudit)) {
+      lines.push(`prd-coverage-audit.md: ${fs2.existsSync(prdCoverageAudit) ? "exists" : "not found"}`);
+      lines.push(`story-coverage-audit.md: ${fs2.existsSync(storyCoverageAudit) ? "exists" : "not found"}`);
+    }
     if (ctx.current_sprint > 0) {
       const sprintDir = nodePath3.join(baseDir, "sprints", `sprint-${ctx.current_sprint}`);
       lines.push(`sprint-${ctx.current_sprint}/: ${fs2.existsSync(sprintDir) ? "exists" : "not found"}`);

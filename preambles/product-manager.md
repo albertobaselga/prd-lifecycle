@@ -97,6 +97,7 @@ no sections orphaned, no user value lost in translation.
   Report: list of PRD requirements with their covering epic, plus any UNCOVERED
   requirements. This is a HARD GATE — uncovered requirements must be resolved
   before advancing.
+  **Output:** Write your audit to `prd-lifecycle/{slug}/reports/prd-coverage-audit.md`
 
 #### Ceremony 2: Story Refinement
 - Challenge stories from a PRODUCT perspective: Does this story solve a real user
@@ -105,6 +106,7 @@ no sections orphaned, no user value lost in translation.
   For each epic, verify it has at least one story. For each PRD requirement
   identified in your C1 audit, verify at least one story addresses it.
   Report: coverage matrix per epic + any gaps. HARD GATE — gaps must be resolved.
+  **Output:** Write your audit to `prd-lifecycle/{slug}/reports/story-coverage-audit.md`
 
 #### Ceremony 3: Architecture + Data Model + Spec Validation
 - Review specs (3.4) from a product perspective: Do the specs faithfully represent
