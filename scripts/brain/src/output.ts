@@ -190,10 +190,63 @@ export function renderNavigationBox(
       const lineCount = fs.readFileSync(learningsPath, 'utf-8').split('\n').length;
       lines.push(`learnings.md: ${lineCount} lines`);
     }
+    // Epic-level document completeness
     const epicsPath = nodePath.join(baseDir, 'epics.json');
-    lines.push(`epics.json: ${fs.existsSync(epicsPath) ? 'exists' : 'not found'}`);
+    if (fs.existsSync(epicsPath)) {
+      try {
+        const epicsData = JSON.parse(fs.readFileSync(epicsPath, 'utf-8'));
+        const epicIds: string[] = (epicsData.epics || []).map((e: any) => e.id);
+        const epicCount = epicIds.length;
+        lines.push(`epics.json: ${epicCount} epics`);
+
+        const checkDocs = (dir: string, prefix: string, suffix: string = '') => {
+          let found = 0;
+          for (const id of epicIds) {
+            const fname = suffix ? `epic-${id}${suffix}.md` : `epic-${id}.md`;
+            if (fs.existsSync(nodePath.join(baseDir, dir, fname))) found++;
+          }
+          return `${prefix}: ${found}/${epicCount} epics`;
+        };
+
+        lines.push(checkDocs('arch', 'arch docs'));
+        lines.push(checkDocs('data', 'data docs'));
+        lines.push(checkDocs('specs', 'spec docs'));
+
+        if (ctx.has_ai_ml) lines.push(checkDocs('arch', 'ML docs', '-ml'));
+        if (ctx.has_analytics) lines.push(checkDocs('arch', 'analytics docs', '-analytics'));
+        if (ctx.has_frontend_ui) lines.push(checkDocs('arch', 'UX docs', '-ux'));
+      } catch {
+        lines.push('epics.json: exists (parse error)');
+      }
+    } else {
+      lines.push('epics.json: not found');
+    }
+
+    // Backlog with story count
     const backlogPath = nodePath.join(baseDir, 'backlog.json');
-    lines.push(`backlog.json: ${fs.existsSync(backlogPath) ? 'exists' : 'not found'}`);
+    if (fs.existsSync(backlogPath)) {
+      try {
+        const backlogData = JSON.parse(fs.readFileSync(backlogPath, 'utf-8'));
+        const storyCount = (backlogData.stories || []).length;
+        lines.push(`backlog.json: ${storyCount} stories`);
+      } catch {
+        lines.push('backlog.json: exists (parse error)');
+      }
+    } else {
+      lines.push('backlog.json: not found');
+    }
+
+    // Story count from prd.json (intermediate artifact before backlog)
+    const prdPath = nodePath.join(baseDir, 'prd.json');
+    if (fs.existsSync(prdPath)) {
+      try {
+        const prdData = JSON.parse(fs.readFileSync(prdPath, 'utf-8'));
+        const storyCount = (prdData.stories || []).length;
+        lines.push(`prd.json stories: ${storyCount}`);
+      } catch {
+        lines.push('prd.json: exists (parse error)');
+      }
+    }
     const prdCoverageAudit = nodePath.join(baseDir, 'reports', 'prd-coverage-audit.md');
     const storyCoverageAudit = nodePath.join(baseDir, 'reports', 'story-coverage-audit.md');
     if (fs.existsSync(prdCoverageAudit) || fs.existsSync(storyCoverageAudit)) {
