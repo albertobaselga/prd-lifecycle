@@ -32,6 +32,8 @@ var TYPED_EVENTS = /* @__PURE__ */ new Set([
   "PHASE1_SPAWNED",
   "CEREMONY1_COMPLETE",
   "CEREMONY2_COMPLETE",
+  "CEREMONY3_AUTHORED",
+  "CEREMONY3_REVIEWED",
   "PHASE1_COMPLETE",
   "REFINEMENT_DONE",
   "PLANNING_DONE",
@@ -55,6 +57,8 @@ var STEP_TO_EVENT = {
   phase1_spawned: "PHASE1_SPAWNED",
   ceremony1_complete: "CEREMONY1_COMPLETE",
   ceremony2_complete: "CEREMONY2_COMPLETE",
+  ceremony3_authored: "CEREMONY3_AUTHORED",
+  ceremony3_reviewed: "CEREMONY3_REVIEWED",
   phase1_complete: "PHASE1_COMPLETE",
   refinement_done: "REFINEMENT_DONE",
   sprint_planning_done: "PLANNING_DONE",
@@ -3395,7 +3399,8 @@ var workflow_default = {
           },
           meta: {
             nav: {
-              resumeAt: "PHASE 1 \u2014 resume ceremonies (check which ceremony is next)",
+              loadFile: "phases/phase1-specification.md",
+              resumeAt: "CEREMONY 1: EPIC DECOMPOSITION \u2014 step 1.1: REQUEST EPIC PROPOSALS",
               roles: "architect, data-engineer, qa-engineer, security-reviewer, tech-writer, product-manager",
               conditionalRoles: {
                 has_ai_ml: "applied-ai-engineer, prompt-engineer",
@@ -3416,7 +3421,8 @@ var workflow_default = {
           },
           meta: {
             nav: {
-              resumeAt: "PHASE 1 \u2014 CEREMONY 2: Story Refinement",
+              loadFile: "phases/phase1-specification.md",
+              resumeAt: "CEREMONY 2: STORY REFINEMENT \u2014 step 2.1: EXTRACT STORIES PER EPIC",
               roles: "(Phase 1 specialists should still be active)",
               meaning: "Epic Decomposition done \u2014 epics defined with PRD section mapping and execution order",
               previous: "phase1_spawned"
@@ -3425,6 +3431,38 @@ var workflow_default = {
         },
         ceremony2_complete: {
           on: {
+            CEREMONY3_AUTHORED: {
+              target: "ceremony3_authored"
+            }
+          },
+          meta: {
+            nav: {
+              loadFile: "phases/phase1-specification.md",
+              resumeAt: "CEREMONY 3 \u2014 step 3.1: PARALLEL AUTHORING",
+              roles: "(Phase 1 specialists should still be active)",
+              meaning: "Story Refinement done \u2014 stories extracted per epic with epic_id, acceptance criteria validated",
+              previous: "ceremony1_complete"
+            }
+          }
+        },
+        ceremony3_authored: {
+          on: {
+            CEREMONY3_REVIEWED: {
+              target: "ceremony3_reviewed"
+            }
+          },
+          meta: {
+            nav: {
+              loadFile: "phases/phase1-specification.md",
+              resumeAt: "CEREMONY 3 \u2014 step 3.2: ARCHITECTURE REVIEW",
+              roles: "(Phase 1 specialists should still be active)",
+              meaning: "Architecture, data, and spec docs authored. Starting cross-review cycles (3.2-3.4).",
+              previous: "ceremony2_complete"
+            }
+          }
+        },
+        ceremony3_reviewed: {
+          on: {
             PHASE1_COMPLETE: {
               target: "#prdLifecycle.execution",
               actions: ["updateBacklogCount"]
@@ -3432,10 +3470,11 @@ var workflow_default = {
           },
           meta: {
             nav: {
-              resumeAt: "PHASE 1 \u2014 CEREMONY 3: Spec Validation + Backlog Finalization",
+              loadFile: "phases/phase1-specification.md",
+              resumeAt: "CEREMONY 3 \u2014 step 3.4b: CREATE PRODUCT BACKLOG",
               roles: "(Phase 1 specialists should still be active)",
-              meaning: "Story Refinement done \u2014 stories extracted per epic with epic_id, acceptance criteria validated",
-              previous: "ceremony1_complete"
+              meaning: "All review cycles passed (arch, data, spec). Finalize: backlog + gate + shutdown + commit.",
+              previous: "ceremony3_authored"
             }
           }
         }
@@ -4100,9 +4139,54 @@ function renderNavigationBox(snapshot, nav, projectRoot, instance) {
       lines.push(`learnings.md: ${lineCount} lines`);
     }
     const epicsPath = nodePath3.join(baseDir, "epics.json");
-    lines.push(`epics.json: ${fs2.existsSync(epicsPath) ? "exists" : "not found"}`);
+    if (fs2.existsSync(epicsPath)) {
+      try {
+        const epicsData = JSON.parse(fs2.readFileSync(epicsPath, "utf-8"));
+        const epicIds = (epicsData.epics || []).map((e) => e.id);
+        const epicCount = epicIds.length;
+        lines.push(`epics.json: ${epicCount} epics`);
+        const checkDocs = (dir, prefix, suffix = "") => {
+          let found = 0;
+          for (const id of epicIds) {
+            const fname = suffix ? `epic-${id}${suffix}.md` : `epic-${id}.md`;
+            if (fs2.existsSync(nodePath3.join(baseDir, dir, fname))) found++;
+          }
+          return `${prefix}: ${found}/${epicCount} epics`;
+        };
+        lines.push(checkDocs("arch", "arch docs"));
+        lines.push(checkDocs("data", "data docs"));
+        lines.push(checkDocs("specs", "spec docs"));
+        if (ctx.has_ai_ml) lines.push(checkDocs("arch", "ML docs", "-ml"));
+        if (ctx.has_analytics) lines.push(checkDocs("arch", "analytics docs", "-analytics"));
+        if (ctx.has_frontend_ui) lines.push(checkDocs("arch", "UX docs", "-ux"));
+      } catch {
+        lines.push("epics.json: exists (parse error)");
+      }
+    } else {
+      lines.push("epics.json: not found");
+    }
     const backlogPath = nodePath3.join(baseDir, "backlog.json");
-    lines.push(`backlog.json: ${fs2.existsSync(backlogPath) ? "exists" : "not found"}`);
+    if (fs2.existsSync(backlogPath)) {
+      try {
+        const backlogData = JSON.parse(fs2.readFileSync(backlogPath, "utf-8"));
+        const storyCount = (backlogData.stories || []).length;
+        lines.push(`backlog.json: ${storyCount} stories`);
+      } catch {
+        lines.push("backlog.json: exists (parse error)");
+      }
+    } else {
+      lines.push("backlog.json: not found");
+    }
+    const prdPath = nodePath3.join(baseDir, "prd.json");
+    if (fs2.existsSync(prdPath)) {
+      try {
+        const prdData = JSON.parse(fs2.readFileSync(prdPath, "utf-8"));
+        const storyCount = (prdData.stories || []).length;
+        lines.push(`prd.json stories: ${storyCount}`);
+      } catch {
+        lines.push("prd.json: exists (parse error)");
+      }
+    }
     const prdCoverageAudit = nodePath3.join(baseDir, "reports", "prd-coverage-audit.md");
     const storyCoverageAudit = nodePath3.join(baseDir, "reports", "story-coverage-audit.md");
     if (fs2.existsSync(prdCoverageAudit) || fs2.existsSync(storyCoverageAudit)) {
